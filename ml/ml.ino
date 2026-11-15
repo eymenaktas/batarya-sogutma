@@ -1,5 +1,8 @@
+#include <EEPROM.h>
+#include "model.h"
+
 const int sensorPin = A0;
-const int pompaPin = 9;
+const int pompaPin = 3;
 const int buzzerPin = 8;
 const int yesilLedPin = 4;
 const int kirmiziLedPin = 7;
@@ -16,27 +19,60 @@ const int enYuksekPompaGucu = 255;
 const int olcumSayisi = 10;
 const unsigned long olcumAraligi = 1000;
 
-const int gecmisBoyutu = 20;
 const int egimAraligi = 5;
-const float ogrenmeHizi = 0.02;
+const int tahminSuresi = 20;
+const float sicaklikMerkezi = 25.0;
+const float sicaklikOlcegi = 10.0;
 const float yumusatma = 0.3;
 const float enFazlaTahminFarki = 10.0;
 
-float gecmisSicaklik[gecmisBoyutu];
-float gecmisEgim[gecmisBoyutu];
-float gecmisPompa[gecmisBoyutu];
-int gecmisSirasi = 0;
-int kayitSayisi = 0;
+const float ogrenmeHizi = 0.002;
+const float enFazlaHata = 3.0;
+const unsigned long kayitAraligi = 600000;
+const int hafizaAdresi = 0;
+const long hafizaImzasi = 20261115;
 
-float agirlikEgim = 0.0;
-float agirlikPompa = 0.0;
-float agirlikSabit = 0.0;
+struct Ogrenilenler {
+  long imza;
+  float cikisAgirlik[gizliSayisi];
+  float cikisSabiti;
+  unsigned long guncellemeSayisi;
+};
+
+Ogrenilenler ogrenilen;
+
+float sicaklikGecmisi[egimAraligi];
+int sicaklikSirasi = 0;
+int sicaklikKayitSayisi = 0;
+
+float egitimGirdisi[tahminSuresi][girdiSayisi];
+float egitimSicakligi[tahminSuresi];
+int egitimSirasi = 0;
+int egitimKayitSayisi = 0;
 
 float yumusakSicaklik = 0.0;
 float pompaOrani = 0.0;
 bool ilkOlcum = true;
 bool pompaCalisiyor = false;
 unsigned long sonOlcumZamani = 0;
+unsigned long sonKayitZamani = 0;
+
+void ogrenilenleriYukle() {
+  EEPROM.get(hafizaAdresi, ogrenilen);
+  if (ogrenilen.imza == hafizaImzasi) {
+    return;
+  }
+  ogrenilen.imza = hafizaImzasi;
+  for (int n = 0; n < gizliSayisi; n++) {
+    ogrenilen.cikisAgirlik[n] = baslangicCikisAgirlik[n];
+  }
+  ogrenilen.cikisSabiti = baslangicCikisSabiti;
+  ogrenilen.guncellemeSayisi = 0;
+}
+
+void ogrenilenleriKaydet() {
+  EEPROM.put(hafizaAdresi, ogrenilen);
+}
 
 float sicaklikOku() {
   long toplam = 0;
@@ -63,43 +99,79 @@ float sicaklikYumusat(float sicaklik) {
 }
 
 float egimHesapla(float sicaklik) {
-  if (kayitSayisi < gecmisBoyutu) {
+  if (sicaklikKayitSayisi < egimAraligi) {
     return 0.0;
   }
-  int eskiSira = (gecmisSirasi + gecmisBoyutu - egimAraligi) % gecmisBoyutu;
-  return sicaklik - gecmisSicaklik[eskiSira];
+  return sicaklik - sicaklikGecmisi[sicaklikSirasi];
 }
 
-float degisimTahminEt(float egim, float pompa) {
-  return agirlikEgim * egim + agirlikPompa * pompa + agirlikSabit;
+void sicaklikKaydet(float sicaklik) {
+  sicaklikGecmisi[sicaklikSirasi] = sicaklik;
+  sicaklikSirasi = (sicaklikSirasi + 1) % egimAraligi;
+  if (sicaklikKayitSayisi < egimAraligi) {
+    sicaklikKayitSayisi++;
+  }
+}
+
+void gizliKatmanHesapla(float girdi[], float gizli[]) {
+  for (int n = 0; n < gizliSayisi; n++) {
+    float toplam = gizliSabit[n];
+    for (int g = 0; g < girdiSayisi; g++) {
+      toplam += gizliAgirlik[n][g] * girdi[g];
+    }
+    if (toplam < 0) {
+      toplam = 0;
+    }
+    gizli[n] = toplam;
+  }
+}
+
+float cikisHesapla(float gizli[]) {
+  float sonuc = ogrenilen.cikisSabiti;
+  for (int n = 0; n < gizliSayisi; n++) {
+    sonuc += ogrenilen.cikisAgirlik[n] * gizli[n];
+  }
+  return sonuc;
 }
 
 void modeliEgit(float sicaklik) {
-  if (kayitSayisi < gecmisBoyutu) {
+  if (egitimKayitSayisi < tahminSuresi) {
     return;
   }
-  float eskiEgim = gecmisEgim[gecmisSirasi];
-  float eskiPompa = gecmisPompa[gecmisSirasi];
-  float gercekDegisim = sicaklik - gecmisSicaklik[gecmisSirasi];
-  float hata = gercekDegisim - degisimTahminEt(eskiEgim, eskiPompa);
+  float gizli[gizliSayisi];
+  gizliKatmanHesapla(egitimGirdisi[egitimSirasi], gizli);
 
-  agirlikEgim += ogrenmeHizi * hata * eskiEgim;
-  agirlikPompa += ogrenmeHizi * hata * eskiPompa;
-  agirlikSabit += ogrenmeHizi * hata;
+  float gercekDegisim = sicaklik - egitimSicakligi[egitimSirasi];
+  float hata = gercekDegisim - cikisHesapla(gizli);
+  if (hata > enFazlaHata) {
+    hata = enFazlaHata;
+  }
+  if (hata < -enFazlaHata) {
+    hata = -enFazlaHata;
+  }
+
+  for (int n = 0; n < gizliSayisi; n++) {
+    ogrenilen.cikisAgirlik[n] += ogrenmeHizi * hata * gizli[n];
+  }
+  ogrenilen.cikisSabiti += ogrenmeHizi * hata;
+  ogrenilen.guncellemeSayisi++;
 }
 
-void gecmiseKaydet(float sicaklik, float egim, float pompa) {
-  gecmisSicaklik[gecmisSirasi] = sicaklik;
-  gecmisEgim[gecmisSirasi] = egim;
-  gecmisPompa[gecmisSirasi] = pompa;
-  gecmisSirasi = (gecmisSirasi + 1) % gecmisBoyutu;
-  if (kayitSayisi < gecmisBoyutu) {
-    kayitSayisi++;
+void egitimeKaydet(float girdi[], float sicaklik) {
+  for (int g = 0; g < girdiSayisi; g++) {
+    egitimGirdisi[egitimSirasi][g] = girdi[g];
+  }
+  egitimSicakligi[egitimSirasi] = sicaklik;
+  egitimSirasi = (egitimSirasi + 1) % tahminSuresi;
+  if (egitimKayitSayisi < tahminSuresi) {
+    egitimKayitSayisi++;
   }
 }
 
-float gelecekSicaklikTahminEt(float sicaklik, float egim) {
-  float degisim = degisimTahminEt(egim, pompaOrani);
+float gelecekSicaklikTahminEt(float girdi[], float sicaklik) {
+  float gizli[gizliSayisi];
+  gizliKatmanHesapla(girdi, gizli);
+  float degisim = cikisHesapla(gizli);
   if (degisim > enFazlaTahminFarki) {
     degisim = enFazlaTahminFarki;
   }
@@ -144,6 +216,8 @@ void durumGoster(float sicaklik, float tahmin, int pompaGucu, bool ariza) {
   Serial.print(tahmin, 1);
   Serial.print(" C | Pompa: %");
   Serial.print(pompaGucu * 100 / enYuksekPompaGucu);
+  Serial.print(" | Ogrenme adimi: ");
+  Serial.print(ogrenilen.guncellemeSayisi);
   Serial.print(" | Durum: ");
 
   if (ariza) {
@@ -165,6 +239,7 @@ void setup() {
   pinMode(yesilLedPin, OUTPUT);
   pinMode(kirmiziLedPin, OUTPUT);
   Serial.begin(9600);
+  ogrenilenleriYukle();
 }
 
 void loop() {
@@ -182,12 +257,18 @@ void loop() {
 
   if (ariza) {
     pompaGucu = enYuksekPompaGucu;
+    sicaklikKayitSayisi = 0;
+    egitimKayitSayisi = 0;
+    ilkOlcum = true;
   } else {
     sicaklik = sicaklikYumusat(hamSicaklik);
     float egim = egimHesapla(sicaklik);
+    sicaklikKaydet(sicaklik);
+
+    float girdi[girdiSayisi] = {egim, pompaOrani, (sicaklik - sicaklikMerkezi) / sicaklikOlcegi};
     modeliEgit(sicaklik);
-    gecmiseKaydet(sicaklik, egim, pompaOrani);
-    tahmin = gelecekSicaklikTahminEt(sicaklik, egim);
+    egitimeKaydet(girdi, sicaklik);
+    tahmin = gelecekSicaklikTahminEt(girdi, sicaklik);
 
     float kararSicakligi = sicaklik;
     if (tahmin > kararSicakligi) {
@@ -199,4 +280,9 @@ void loop() {
   pompaOrani = pompaGucu / (float)enYuksekPompaGucu;
   analogWrite(pompaPin, pompaGucu);
   durumGoster(sicaklik, tahmin, pompaGucu, ariza);
+
+  if (simdi - sonKayitZamani >= kayitAraligi) {
+    sonKayitZamani = simdi;
+    ogrenilenleriKaydet();
+  }
 }

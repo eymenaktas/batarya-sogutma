@@ -9,11 +9,14 @@
     enDusukPompaGucu: 90,
     enYuksekPompaGucu: 255,
     olcumSayisi: 10,
-    gecmisBoyutu: 20,
     egimAraligi: 5,
-    ogrenmeHizi: 0.02,
+    tahminSuresi: 20,
+    sicaklikMerkezi: 25.0,
+    sicaklikOlcegi: 10.0,
     yumusatma: 0.3,
     enFazlaTahminFarki: 10.0,
+    ogrenmeHizi: 0.002,
+    enFazlaHata: 3.0,
     isiSigasi: 150.0,
     azamiIsi: 40.0,
     pasifKayip: 0.3,
@@ -107,21 +110,26 @@
     return { sicaklik, tahmin: sicaklik, pompaGucu, ariza, durum: durumBul(sicaklik, sicaklik, pompaGucu, ariza) };
   }
 
-  function mlOlustur() {
+  function mlOlustur(model, ogrenilen) {
+    const kaynak = ogrenilen || model;
     return {
-      gecmisSicaklik: new Array(ayar.gecmisBoyutu).fill(0),
-      gecmisEgim: new Array(ayar.gecmisBoyutu).fill(0),
-      gecmisPompa: new Array(ayar.gecmisBoyutu).fill(0),
-      gecmisSirasi: 0,
-      kayitSayisi: 0,
-      agirlikEgim: 0.0,
-      agirlikPompa: 0.0,
-      agirlikSabit: 0.0,
+      model,
+      cikisAgirlik: kaynak.cikisAgirlik.slice(),
+      cikisSabiti: kaynak.cikisSabiti,
+      guncellemeSayisi: ogrenilen ? ogrenilen.guncellemeSayisi : 0,
+      sicaklikGecmisi: new Array(ayar.egimAraligi).fill(0),
+      sicaklikSirasi: 0,
+      sicaklikKayitSayisi: 0,
+      egitimGirdisi: new Array(ayar.tahminSuresi).fill(null),
+      egitimSicakligi: new Array(ayar.tahminSuresi).fill(0),
+      egitimSirasi: 0,
+      egitimKayitSayisi: 0,
       yumusakSicaklik: 0.0,
       pompaOrani: 0.0,
       ilkOlcum: true,
       pompaCalisiyor: false,
-      sonHata: 0.0
+      sonHata: null,
+      sonHataBaslangic: null
     };
   }
 
@@ -136,86 +144,152 @@
   }
 
   function egimHesapla(m, sicaklik) {
-    if (m.kayitSayisi < ayar.gecmisBoyutu) {
+    if (m.sicaklikKayitSayisi < ayar.egimAraligi) {
       return 0.0;
     }
-    const eskiSira = (m.gecmisSirasi + ayar.gecmisBoyutu - ayar.egimAraligi) % ayar.gecmisBoyutu;
-    return sicaklik - m.gecmisSicaklik[eskiSira];
+    return sicaklik - m.sicaklikGecmisi[m.sicaklikSirasi];
   }
 
-  function degisimTahminEt(m, egim, pompa) {
-    return m.agirlikEgim * egim + m.agirlikPompa * pompa + m.agirlikSabit;
+  function sicaklikKaydet(m, sicaklik) {
+    m.sicaklikGecmisi[m.sicaklikSirasi] = sicaklik;
+    m.sicaklikSirasi = (m.sicaklikSirasi + 1) % ayar.egimAraligi;
+    if (m.sicaklikKayitSayisi < ayar.egimAraligi) {
+      m.sicaklikKayitSayisi++;
+    }
   }
 
-  function modeliEgit(m, sicaklik) {
-    if (m.kayitSayisi < ayar.gecmisBoyutu) {
+  function gizliKatmanHesapla(model, girdi) {
+    const gizli = new Array(model.gizliSayisi);
+    for (let n = 0; n < model.gizliSayisi; n++) {
+      let toplam = model.gizliSabit[n];
+      for (let g = 0; g < model.girdiSayisi; g++) {
+        toplam += model.gizliAgirlik[n][g] * girdi[g];
+      }
+      if (toplam < 0) {
+        toplam = 0;
+      }
+      gizli[n] = toplam;
+    }
+    return gizli;
+  }
+
+  function cikisHesapla(agirlik, sabit, gizli) {
+    let sonuc = sabit;
+    for (let n = 0; n < gizli.length; n++) {
+      sonuc += agirlik[n] * gizli[n];
+    }
+    return sonuc;
+  }
+
+  function modeliEgit(m, sicaklik, eskiGizli) {
+    if (m.egitimKayitSayisi < ayar.tahminSuresi) {
       return;
     }
-    const eskiEgim = m.gecmisEgim[m.gecmisSirasi];
-    const eskiPompa = m.gecmisPompa[m.gecmisSirasi];
-    const gercekDegisim = sicaklik - m.gecmisSicaklik[m.gecmisSirasi];
-    const hata = gercekDegisim - degisimTahminEt(m, eskiEgim, eskiPompa);
-    m.agirlikEgim += ayar.ogrenmeHizi * hata * eskiEgim;
-    m.agirlikPompa += ayar.ogrenmeHizi * hata * eskiPompa;
-    m.agirlikSabit += ayar.ogrenmeHizi * hata;
-    m.sonHata = hata;
+    const gercekDegisim = sicaklik - m.egitimSicakligi[m.egitimSirasi];
+    m.sonHataBaslangic = gercekDegisim - cikisHesapla(m.model.cikisAgirlik, m.model.cikisSabiti, eskiGizli);
+    m.sonHata = gercekDegisim - cikisHesapla(m.cikisAgirlik, m.cikisSabiti, eskiGizli);
+    let hata = m.sonHata;
+    if (hata > ayar.enFazlaHata) {
+      hata = ayar.enFazlaHata;
+    }
+    if (hata < -ayar.enFazlaHata) {
+      hata = -ayar.enFazlaHata;
+    }
+    for (let n = 0; n < eskiGizli.length; n++) {
+      m.cikisAgirlik[n] += ayar.ogrenmeHizi * hata * eskiGizli[n];
+    }
+    m.cikisSabiti += ayar.ogrenmeHizi * hata;
+    m.guncellemeSayisi++;
   }
 
-  function gecmiseKaydet(m, sicaklik, egim, pompa) {
-    m.gecmisSicaklik[m.gecmisSirasi] = sicaklik;
-    m.gecmisEgim[m.gecmisSirasi] = egim;
-    m.gecmisPompa[m.gecmisSirasi] = pompa;
-    m.gecmisSirasi = (m.gecmisSirasi + 1) % ayar.gecmisBoyutu;
-    if (m.kayitSayisi < ayar.gecmisBoyutu) {
-      m.kayitSayisi++;
+  function egitimeKaydet(m, girdi, sicaklik) {
+    m.egitimGirdisi[m.egitimSirasi] = girdi;
+    m.egitimSicakligi[m.egitimSirasi] = sicaklik;
+    m.egitimSirasi = (m.egitimSirasi + 1) % ayar.tahminSuresi;
+    if (m.egitimKayitSayisi < ayar.tahminSuresi) {
+      m.egitimKayitSayisi++;
     }
   }
 
-  function gelecekSicaklikTahminEt(m, sicaklik, egim) {
-    let degisim = degisimTahminEt(m, egim, m.pompaOrani);
-    if (degisim > ayar.enFazlaTahminFarki) {
-      degisim = ayar.enFazlaTahminFarki;
-    }
-    if (degisim < -ayar.enFazlaTahminFarki) {
-      degisim = -ayar.enFazlaTahminFarki;
-    }
-    return sicaklik + degisim;
-  }
-
-  function mlAdim(m, f) {
+  function mlOlc(m, f) {
     const hamSicaklik = sicaklikOku(f);
-    const ariza = sensorArizali(hamSicaklik);
-    let sicaklik = hamSicaklik;
-    let tahmin = hamSicaklik;
+    if (sensorArizali(hamSicaklik)) {
+      m.sicaklikKayitSayisi = 0;
+      m.egitimKayitSayisi = 0;
+      m.ilkOlcum = true;
+      return { hamSicaklik, ariza: true, sicaklik: hamSicaklik, girdi: null, eskiGirdi: null };
+    }
+    const sicaklik = sicaklikYumusat(m, hamSicaklik);
+    const egim = egimHesapla(m, sicaklik);
+    sicaklikKaydet(m, sicaklik);
+    const girdi = [egim, m.pompaOrani, (sicaklik - ayar.sicaklikMerkezi) / ayar.sicaklikOlcegi];
+    const eskiGirdi = m.egitimKayitSayisi < ayar.tahminSuresi ? null : m.egitimGirdisi[m.egitimSirasi];
+    return { hamSicaklik, ariza: false, sicaklik, girdi, eskiGirdi };
+  }
+
+  function mlKarar(m, olcum, gizli, eskiGizli) {
+    let tahmin = olcum.sicaklik;
     let pompaGucu;
-    if (ariza) {
+    m.sonHata = null;
+    m.sonHataBaslangic = null;
+    if (olcum.ariza) {
       pompaGucu = ayar.enYuksekPompaGucu;
     } else {
-      sicaklik = sicaklikYumusat(m, hamSicaklik);
-      const egim = egimHesapla(m, sicaklik);
-      modeliEgit(m, sicaklik);
-      gecmiseKaydet(m, sicaklik, egim, m.pompaOrani);
-      tahmin = gelecekSicaklikTahminEt(m, sicaklik, egim);
-      let kararSicakligi = sicaklik;
+      if (olcum.eskiGirdi) {
+        modeliEgit(m, olcum.sicaklik, eskiGizli);
+      }
+      egitimeKaydet(m, olcum.girdi, olcum.sicaklik);
+      let degisim = cikisHesapla(m.cikisAgirlik, m.cikisSabiti, gizli);
+      if (degisim > ayar.enFazlaTahminFarki) {
+        degisim = ayar.enFazlaTahminFarki;
+      }
+      if (degisim < -ayar.enFazlaTahminFarki) {
+        degisim = -ayar.enFazlaTahminFarki;
+      }
+      tahmin = olcum.sicaklik + degisim;
+      let kararSicakligi = olcum.sicaklik;
       if (tahmin > kararSicakligi) {
         kararSicakligi = tahmin;
       }
       pompaGucu = pompaGucuHesapla(m, kararSicakligi);
     }
     m.pompaOrani = pompaGucu / ayar.enYuksekPompaGucu;
-    return { sicaklik, tahmin, pompaGucu, ariza, durum: durumBul(sicaklik, tahmin, pompaGucu, ariza) };
+    return {
+      sicaklik: olcum.sicaklik,
+      tahmin,
+      pompaGucu,
+      ariza: olcum.ariza,
+      durum: durumBul(olcum.sicaklik, tahmin, pompaGucu, olcum.ariza)
+    };
   }
 
-  function saniyeIlerlet(f, kontrol, adim) {
+  function mlAdim(m, f) {
+    const olcum = mlOlc(m, f);
+    if (olcum.ariza) {
+      return mlKarar(m, olcum, null, null);
+    }
+    const gizli = gizliKatmanHesapla(m.model, olcum.girdi);
+    const eskiGizli = olcum.eskiGirdi ? gizliKatmanHesapla(m.model, olcum.eskiGirdi) : null;
+    return mlKarar(m, olcum, gizli, eskiGizli);
+  }
+
+  function fizikIlerlet(f) {
     for (let i = 0; i < 10; i++) {
       fizikAdimi(f, 0.1);
     }
+  }
+
+  function saniyeIlerlet(f, kontrol, adim) {
+    fizikIlerlet(f);
     const sonuc = adim(kontrol, f);
     f.pompaPwm = sonuc.pompaGucu;
     return sonuc;
   }
 
-  const disari = { ayar, fizikOlustur, klasikOlustur, klasikAdim, mlOlustur, mlAdim, saniyeIlerlet };
+  const disari = {
+    ayar, fizikOlustur, fizikIlerlet, klasikOlustur, klasikAdim, mlOlustur, mlOlc, mlKarar, mlAdim,
+    gizliKatmanHesapla, cikisHesapla, pompaGucuHesapla, saniyeIlerlet
+  };
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = disari;

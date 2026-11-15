@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Batarya Soğutma Deneme Ortamı · akts.tr</title>
-<meta name="description" content="Elektrikli araç bataryası için pompalı otomatik soğutma: klasik ve makine öğrenmeli Arduino kodunu yan yana deneyin.">
+<meta name="description" content="Elektrikli araç bataryası için pompalı otomatik soğutma: klasik ve makine öğrenmeli Arduino kodunu canlı devre üzerinde deneyin.">
 <meta property="og:title" content="Batarya Soğutma Deneme Ortamı">
-<meta property="og:description" content="Klasik ve makine öğrenmeli Arduino soğutma kodunu aynı bataryada yan yana deneyin.">
+<meta property="og:description" content="Klasik ve makine öğrenmeli Arduino soğutma kodu: canlı devre, simülasyon ve analiz.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>
 (function () {
@@ -27,6 +27,8 @@
   --seri-klasik: #2a78d6;
   --seri-ml: #eb6834;
   --alarm: #c8281c;
+  --kablo-gnd: #2b2b30;
+  --kart-zemin: #eef0f3;
   --radius: 0.85rem;
   color-scheme: light;
 }
@@ -40,29 +42,28 @@
   --seri-klasik: #3987e5;
   --seri-ml: #d95926;
   --alarm: #e66767;
+  --kablo-gnd: #a9a9b0;
+  --kart-zemin: #17181b;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+  margin: 0; background: var(--bg); color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-  font-size: 17px;
-  line-height: 1.6;
-  letter-spacing: -0.011em;
+  font-size: 17px; line-height: 1.6; letter-spacing: -0.011em;
 }
-.sayfa { max-width: 1120px; margin: 0 auto; padding: 28px 16px 72px; }
-header { display: flex; flex-direction: column-reverse; align-items: stretch; gap: 12px; margin-bottom: 28px; }
+.sayfa { max-width: 1120px; margin: 0 auto; padding: 24px 16px 72px; }
+header { display: flex; flex-direction: column-reverse; gap: 12px; margin-bottom: 18px; }
 .ust-etiket { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; }
 .ust-etiket a { color: inherit; text-decoration: none; }
 .ust-etiket a:hover { color: var(--fg); }
-h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.1; letter-spacing: -0.03em; margin: 0 0 10px; font-weight: 650; }
-.giris { color: var(--dim); margin: 0; max-width: 62ch; }
-.ust-dugmeler { display: flex; gap: 8px; flex-shrink: 0; align-self: flex-end; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; letter-spacing: -0.03em; margin: 0 0 8px; font-weight: 650; }
+.giris { color: var(--dim); margin: 0; max-width: 64ch; }
+.ust-dugmeler { display: flex; gap: 8px; align-self: flex-end; }
 h2 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 14px; }
-.kart { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+h3 { font-size: 17px; margin: 0 0 6px; }
+.kart { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; min-width: 0; }
 button, .dugme {
   font: inherit; font-size: 15px; color: var(--fg); background: var(--card);
   border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px;
@@ -72,41 +73,54 @@ button, .dugme {
 button:hover, .dugme:hover { background: var(--soft); }
 button:focus-visible, .dugme:focus-visible, input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.sekmeler {
+  position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; gap: 4px;
+  border-bottom: 1px solid var(--border); margin: 0 -16px 20px; padding: 0 16px; overflow-x: auto;
+}
+.sekmeler button {
+  border: 0; border-radius: 0; background: none; padding: 12px 14px; min-height: 48px; color: var(--dim);
+  font-size: 16px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.sekmeler button:hover { color: var(--fg); background: none; }
+.sekmeler button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--fg); }
+.panel[hidden], .kart[hidden] { display: none; }
 .kontroller { display: grid; gap: 18px 28px; grid-template-columns: 1fr; }
-.alan label, .alan .ad { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 6px; }
-.alan output { font-variant-numeric: tabular-nums; color: var(--dim); }
+.alan label, .alan .ad { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; margin-bottom: 6px; }
+.alan output { font-variant-numeric: tabular-nums; color: var(--dim); text-align: right; }
 input[type="range"] { width: 100%; accent-color: var(--fg); height: 28px; margin: 0; }
 .grup { display: flex; flex-wrap: wrap; gap: 8px; }
-.ikili { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.ikili { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 16px; }
 .ikili .kart { margin-bottom: 0; }
 .kart-bas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
 .kart-ad { display: flex; align-items: center; gap: 9px; font-weight: 600; }
-.nokta { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.nokta { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .nokta.klasik { background: var(--seri-klasik); }
 .nokta.ml { background: var(--seri-ml); }
-.durum { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); }
+.nokta.gri { background: var(--dim); }
+.durum { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
 .durum.etkin { color: var(--fg); border-color: var(--fg); }
 .durum.alarm { color: var(--alarm); border-color: var(--alarm); }
-.buyuk { font-size: clamp(44px, 9vw, 64px); font-weight: 650; letter-spacing: -0.04em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.buyuk { font-size: clamp(44px, 9vw, 60px); font-weight: 650; letter-spacing: -0.04em; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .buyuk small { font-size: 0.4em; color: var(--dim); font-weight: 500; letter-spacing: 0; margin-left: 4px; }
 .alt-yazi { font-size: 14px; color: var(--dim); min-height: 1.6em; font-variant-numeric: tabular-nums; }
-.devre { width: 100%; height: auto; display: block; margin: 10px 0 6px; }
-.devre .cizgi { fill: none; stroke: var(--border); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
-.devre .akis { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 20; }
-.devre .kutu { fill: var(--soft); stroke: var(--border); stroke-width: 1.5; }
-.devre text { fill: var(--dim); font-size: 12px; font-family: inherit; }
+.akis-kap { width: 100%; height: auto; display: block; margin: 10px 0 6px; }
+.akis-kap .cizgi { fill: none; stroke: var(--border); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.akis-kap .akis { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 20; }
+.akis-kap .kutu { fill: var(--soft); stroke: var(--border); stroke-width: 1.5; }
+.akis-kap text { fill: var(--dim); font-size: 12px; font-family: inherit; }
 .cubuk { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; margin-top: 4px; }
 .cubuk i { display: block; height: 100%; width: 0; border-radius: 999px; }
-.satir { display: flex; justify-content: space-between; font-size: 14px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: 10px; }
-.satir b { color: var(--fg); font-weight: 600; }
+.satir { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: 10px; }
+.satir b { color: var(--fg); font-weight: 600; text-align: right; }
 .aciklama { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; margin-bottom: 8px; }
 .aciklama span { display: inline-flex; align-items: center; gap: 7px; }
 .aciklama i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.aciklama i.kesik { background: repeating-linear-gradient(90deg, var(--dim) 0 4px, transparent 4px 7px); }
 .grafik-kap { position: relative; }
 .grafik-bas { font-size: 14px; color: var(--dim); margin: 14px 0 2px; }
 canvas { width: 100%; display: block; touch-action: pan-y; }
-#sicaklikGrafik { height: 280px; }
-#pompaGrafik { height: 130px; }
+#sicaklikGrafik { height: 260px; }
+#pompaGrafik { height: 120px; }
 .ipucu {
   position: absolute; top: 8px; pointer-events: none; background: var(--card); border: 1px solid var(--border);
   border-radius: 10px; padding: 8px 12px; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums;
@@ -117,23 +131,86 @@ canvas { width: 100%; display: block; touch-action: pan-y; }
 .tablo-kap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 9px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-th:first-child, td:first-child { text-align: left; white-space: normal; }
+th:first-child, td:first-child { text-align: left; }
 thead th { font-size: 13px; color: var(--dim); font-weight: 600; }
 tbody tr:last-child td { border-bottom: 0; }
 .not { font-size: 14px; color: var(--dim); margin: 12px 0 0; }
-.anlatim { display: grid; gap: 16px; grid-template-columns: 1fr; }
-.anlatim h3 { font-size: 17px; margin: 0 0 6px; display: flex; align-items: center; gap: 9px; }
-.anlatim p { margin: 0 0 10px; color: var(--dim); font-size: 15px; }
-.anlatim code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--soft); padding: 2px 6px; border-radius: 6px; color: var(--fg); }
+.not b { color: var(--fg); font-weight: 600; }
+p.metin { margin: 0 0 12px; color: var(--dim); font-size: 15px; max-width: 70ch; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--soft); padding: 2px 6px; border-radius: 6px; color: var(--fg); }
 footer { font-size: 14px; color: var(--dim); margin-top: 28px; }
 footer a { color: var(--fg); }
+
+.devre-kaydir { overflow-x: auto; background: var(--kart-zemin); border-radius: 12px; border: 1px solid var(--border); }
+.devre { display: block; min-width: 760px; width: 100%; height: auto; font-family: inherit; }
+.devre .kablo { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.devre .gnd { stroke: var(--kablo-gnd); }
+.devre .v5 { stroke: #d43a3a; }
+.devre .v12 { stroke: #d43a3a; stroke-width: 4.4; }
+.devre .a0 { stroke: #d9a400; }
+.devre .d3 { stroke: #2a78d6; }
+.devre .d4 { stroke: #1f9d55; }
+.devre .d7 { stroke: #e0662a; }
+.devre .d8 { stroke: #8a55d6; }
+.devre .tab { stroke: #7d8794; stroke-width: 4.4; }
+.devre .etiket { fill: var(--fg); font-size: 11px; font-weight: 600; }
+.devre .kucuk { fill: var(--dim); font-size: 9.5px; }
+.devre .pin { fill: #ffffff; font-size: 7.5px; }
+.devre .canli { fill: var(--fg); font-size: 11px; font-variant-numeric: tabular-nums; }
+.devre .dugum { fill: var(--kablo-gnd); }
+.devre .govde { fill: #1d1d20; stroke: #000; stroke-width: 0.6; }
+.devre .metal { fill: #b9bec6; stroke: #7d8794; stroke-width: 0.8; }
+.devre .direnc { fill: #d8c49a; stroke: #9c8658; stroke-width: 0.8; }
+.devre .batarya { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+.devre .isik { opacity: 0.18; }
+.devre .isik.yanik { opacity: 1; }
+.devre .hale { opacity: 0; }
+.devre .hale.yanik { opacity: 0.35; }
+.devre .ses { opacity: 0; stroke: var(--fg); fill: none; stroke-width: 2; stroke-linecap: round; }
+.devre .ses.yanik { opacity: 0.8; }
+.seri {
+  background: #0d0d0f; color: #d6f5d6; border-radius: 12px; padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 1.55; height: 190px; overflow: auto; white-space: pre; margin: 0;
+}
+.seri-bas { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 8px; font-size: 14px; color: var(--dim); }
+.renk { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 8px; }
+
+.adimlar { display: grid; gap: 12px; grid-template-columns: 1fr; counter-reset: adim; }
+.adim { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--soft); counter-increment: adim; }
+.adim::before { content: counter(adim); display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600; align-items: center; justify-content: center; margin-bottom: 8px; }
+.adim b { display: block; font-size: 15px; }
+.adim span { font-size: 14px; color: var(--dim); display: block; }
+.karolar { display: grid; gap: 12px; grid-template-columns: 1fr; margin-bottom: 8px; }
+.karo { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.karo .ad { font-size: 14px; color: var(--dim); }
+.karo .deger { font-size: 30px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.karo .deger small { font-size: 0.5em; color: var(--dim); font-weight: 500; letter-spacing: 0; }
+.karo .iz { height: 6px; border-radius: 999px; background: var(--soft); margin-top: 8px; overflow: hidden; }
+.karo .iz i { display: block; height: 100%; border-radius: 999px; background: var(--dim); }
+.karo.one .iz i { background: var(--seri-ml); }
+.cift { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.cift .kart { margin-bottom: 0; }
+.svg-grafik { width: 100%; height: auto; display: block; font-family: inherit; }
+.svg-grafik text { fill: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.svg-grafik .ad { fill: var(--fg); font-size: 12px; }
+.svg-grafik .izgara { stroke: var(--border); stroke-width: 1; }
+.svg-grafik .eksen { stroke: var(--dim); stroke-width: 1; }
+.rozet { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
+.rozet i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.rozet.tamam i { background: #1f9d55; }
+.rozet.hata i { background: var(--alarm); }
+.kod-kap { background: #0d0d0f; color: #e6e6ea; border-radius: 12px; padding: 16px; overflow: auto; max-height: 70vh; margin: 14px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.6; white-space: pre; tab-size: 2; }
+
 @media (min-width: 760px) {
-  .sayfa { padding: 44px 24px 96px; }
+  .sayfa { padding: 40px 24px 96px; }
   header { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 16px; }
   .ust-dugmeler { align-self: auto; }
+  .sekmeler { margin: 0 0 24px; padding: 0; }
   .kontroller { grid-template-columns: 1fr 1fr; }
   .tam { grid-column: 1 / -1; }
-  .ikili, .anlatim { grid-template-columns: 1fr 1fr; }
+  .ikili, .cift { grid-template-columns: 1fr 1fr; }
+  .adimlar { grid-template-columns: repeat(4, 1fr); }
+  .karolar { grid-template-columns: repeat(3, 1fr); }
   .kart { padding: 24px; }
 }
 </style>
@@ -144,15 +221,22 @@ footer a { color: var(--fg); }
     <div>
       <p class="ust-etiket"><a href="/">akts.tr</a> · deneme ortamı</p>
       <h1>Batarya soğutma</h1>
-      <p class="giris">Elektrikli araç bataryasının sıcaklığını ölçüp pompayı otomatik ayarlayan iki Arduino kodu aynı bataryada yan yana çalışıyor. Yükü değiştirin, farkı izleyin.</p>
+      <p class="giris">Elektrikli araç bataryasının sıcaklığını ölçüp pompayı otomatik ayarlayan iki Arduino kodu. Biri klasik kurallarla, diğeri Python'da eğitilip ONNX ile aktarılan ve çalışırken öğrenmeye devam eden bir modelle çalışıyor.</p>
     </div>
     <div class="ust-dugmeler">
-      <a class="dugme" href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">Kod</a>
+      <a class="dugme" href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">GitHub</a>
       <button id="temaDugme" type="button" aria-label="Temayı değiştir">Tema</button>
     </div>
   </header>
 
-  <section class="kart" aria-labelledby="kontrolBaslik">
+  <nav class="sekmeler" role="tablist" aria-label="Bölümler">
+    <button type="button" role="tab" id="sekme-simulasyon" data-sekme="simulasyon" aria-selected="true" aria-controls="panel-simulasyon">Simülasyon</button>
+    <button type="button" role="tab" id="sekme-devre" data-sekme="devre" aria-selected="false" aria-controls="panel-devre">Devre</button>
+    <button type="button" role="tab" id="sekme-analiz" data-sekme="analiz" aria-selected="false" aria-controls="panel-analiz">Analiz</button>
+    <button type="button" role="tab" id="sekme-kod" data-sekme="kod" aria-selected="false" aria-controls="panel-kod">Kod</button>
+  </nav>
+
+  <section class="kart" id="kontrolKarti" aria-labelledby="kontrolBaslik">
     <h2 id="kontrolBaslik">Kontroller</h2>
     <div class="kontroller">
       <div class="alan">
@@ -192,110 +276,335 @@ footer a { color: var(--fg); }
     </div>
   </section>
 
-  <section class="ikili" aria-label="Canlı durum">
-    <article class="kart">
-      <div class="kart-bas">
-        <div class="kart-ad"><span class="nokta klasik"></span>Klasik</div>
-        <span class="durum" id="kDurum">NORMAL</span>
+  <div class="panel" id="panel-simulasyon" role="tabpanel" aria-labelledby="sekme-simulasyon">
+    <section class="ikili" aria-label="Canlı durum">
+      <article class="kart">
+        <div class="kart-bas">
+          <div class="kart-ad"><span class="nokta klasik"></span>Klasik</div>
+          <span class="durum" id="kDurum">NORMAL</span>
+        </div>
+        <div class="buyuk"><span id="kSicaklik">20,0</span><small>°C</small></div>
+        <div class="alt-yazi">Yalnızca şu anki sıcaklığa bakar</div>
+        <svg class="akis-kap" viewBox="0 0 320 96" role="img" aria-label="Klasik sürüm soğutma hattı">
+          <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
+          <path class="akis" id="kAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-klasik)"/>
+          <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
+          <text x="60" y="52" text-anchor="middle">Batarya</text>
+          <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
+          <text x="260" y="52" text-anchor="middle">Radyatör</text>
+          <circle class="kutu" cx="160" cy="30" r="13"/>
+          <text x="160" y="34" text-anchor="middle">P</text>
+        </svg>
+        <div class="satir"><span>Pompa gücü</span><b id="kPompa">%0</b></div>
+        <div class="cubuk"><i id="kCubuk" style="background: var(--seri-klasik)"></i></div>
+        <div class="satir"><span>Sensörün okuduğu</span><b id="kOkunan">20,0 °C</b></div>
+      </article>
+      <article class="kart">
+        <div class="kart-bas">
+          <div class="kart-ad"><span class="nokta ml"></span>Makine öğrenmeli</div>
+          <span class="durum" id="mDurum">NORMAL</span>
+        </div>
+        <div class="buyuk"><span id="mSicaklik">20,0</span><small>°C</small></div>
+        <div class="alt-yazi" id="mTahmin">20 sn sonrası için tahmin: –</div>
+        <svg class="akis-kap" viewBox="0 0 320 96" role="img" aria-label="Makine öğrenmeli sürüm soğutma hattı">
+          <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
+          <path class="akis" id="mAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-ml)"/>
+          <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
+          <text x="60" y="52" text-anchor="middle">Batarya</text>
+          <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
+          <text x="260" y="52" text-anchor="middle">Radyatör</text>
+          <circle class="kutu" cx="160" cy="30" r="13"/>
+          <text x="160" y="34" text-anchor="middle">P</text>
+        </svg>
+        <div class="satir"><span>Pompa gücü</span><b id="mPompa">%0</b></div>
+        <div class="cubuk"><i id="mCubuk" style="background: var(--seri-ml)"></i></div>
+        <div class="satir"><span>Cihazda öğrenme adımı</span><b id="mAdim">0</b></div>
+      </article>
+    </section>
+
+    <section class="kart" aria-labelledby="grafikBaslik">
+      <h2 id="grafikBaslik">Son 10 dakika</h2>
+      <div class="aciklama">
+        <span><i style="background: var(--seri-klasik)"></i>Klasik</span>
+        <span><i style="background: var(--seri-ml)"></i>Makine öğrenmeli</span>
       </div>
-      <div class="buyuk"><span id="kSicaklik">20,0</span><small>°C</small></div>
-      <div class="alt-yazi">Yalnızca şu anki sıcaklığa bakar</div>
-      <svg class="devre" viewBox="0 0 320 96" role="img" aria-label="Klasik sürüm soğutma devresi">
-        <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
-        <path class="akis" id="kAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-klasik)"/>
-        <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
-        <text x="60" y="52" text-anchor="middle">Batarya</text>
-        <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
-        <text x="260" y="52" text-anchor="middle">Radyatör</text>
-        <circle class="kutu" cx="160" cy="30" r="13"/>
-        <text x="160" y="34" text-anchor="middle">P</text>
-      </svg>
-      <div class="satir"><span>Pompa gücü</span><b id="kPompa">%0</b></div>
-      <div class="cubuk"><i id="kCubuk" style="background: var(--seri-klasik)"></i></div>
-      <div class="satir"><span>Sensörün okuduğu</span><b id="kOkunan">20,0 °C</b></div>
-    </article>
-    <article class="kart">
-      <div class="kart-bas">
-        <div class="kart-ad"><span class="nokta ml"></span>Makine öğrenmeli</div>
-        <span class="durum" id="mDurum">NORMAL</span>
+      <div class="grafik-kap" id="grafikKap">
+        <div class="grafik-bas">Batarya sıcaklığı (°C)</div>
+        <canvas id="sicaklikGrafik" role="img" aria-label="İki sürümün batarya sıcaklığı zaman grafiği"></canvas>
+        <div class="grafik-bas">Pompa gücü (%)</div>
+        <canvas id="pompaGrafik" role="img" aria-label="İki sürümün pompa gücü zaman grafiği"></canvas>
+        <div class="ipucu" id="ipucu"></div>
       </div>
-      <div class="buyuk"><span id="mSicaklik">20,0</span><small>°C</small></div>
-      <div class="alt-yazi" id="mTahmin">20 sn sonrası için tahmin: öğreniyor</div>
-      <svg class="devre" viewBox="0 0 320 96" role="img" aria-label="Makine öğrenmeli sürüm soğutma devresi">
-        <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
-        <path class="akis" id="mAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-ml)"/>
-        <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
-        <text x="60" y="52" text-anchor="middle">Batarya</text>
-        <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
-        <text x="260" y="52" text-anchor="middle">Radyatör</text>
-        <circle class="kutu" cx="160" cy="30" r="13"/>
-        <text x="160" y="34" text-anchor="middle">P</text>
-      </svg>
-      <div class="satir"><span>Pompa gücü</span><b id="mPompa">%0</b></div>
-      <div class="cubuk"><i id="mCubuk" style="background: var(--seri-ml)"></i></div>
-      <div class="satir"><span>Öğrenilen ağırlıklar</span><b id="mAgirlik">0,00 · 0,00 · 0,00</b></div>
-    </article>
-  </section>
+    </section>
 
-  <section class="kart" style="margin-top: 16px" aria-labelledby="grafikBaslik">
-    <h2 id="grafikBaslik">Son 10 dakika</h2>
-    <div class="aciklama">
-      <span><i style="background: var(--seri-klasik)"></i>Klasik</span>
-      <span><i style="background: var(--seri-ml)"></i>Makine öğrenmeli</span>
-    </div>
-    <div class="grafik-kap" id="grafikKap">
-      <div class="grafik-bas">Batarya sıcaklığı (°C)</div>
-      <canvas id="sicaklikGrafik" role="img" aria-label="İki sürümün batarya sıcaklığı zaman grafiği"></canvas>
-      <div class="grafik-bas">Pompa gücü (%)</div>
-      <canvas id="pompaGrafik" role="img" aria-label="İki sürümün pompa gücü zaman grafiği"></canvas>
-      <div class="ipucu" id="ipucu"></div>
-    </div>
-  </section>
+    <section class="kart" aria-labelledby="ozetBaslik">
+      <h2 id="ozetBaslik">Bu deneyin özeti</h2>
+      <div class="tablo-kap">
+        <table>
+          <thead>
+            <tr><th scope="col">Ölçüm</th><th scope="col">Klasik</th><th scope="col">Makine öğrenmeli</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>En yüksek sıcaklık</td><td id="oTepeK">–</td><td id="oTepeM">–</td></tr>
+            <tr><td>32 °C üstünde geçen süre</td><td id="oUstK">–</td><td id="oUstM">–</td></tr>
+            <tr><td>Ortalama pompa gücü</td><td id="oPompaK">–</td><td id="oPompaM">–</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
 
-  <section class="kart" aria-labelledby="ozetBaslik">
-    <h2 id="ozetBaslik">Deney özeti</h2>
-    <div class="tablo-kap">
-      <table>
-        <thead>
-          <tr><th scope="col">Ölçüm</th><th scope="col">Klasik</th><th scope="col">Makine öğrenmeli</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>En yüksek sıcaklık</td><td id="oTepeK">–</td><td id="oTepeM">–</td></tr>
-          <tr><td>32 °C üstünde geçen süre</td><td id="oUstK">–</td><td id="oUstM">–</td></tr>
-          <tr><td>Ortalama pompa gücü</td><td id="oPompaK">–</td><td id="oPompaM">–</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="not">Makine öğrenmeli sürüm sıfırdan başlar; ilk dakikalarda klasikle aynı davranır, bataryayı tanıdıkça pompayı daha erken açar. Farkı görmek için 10× ya da 60× hızda birkaç dakika bekleyin.</p>
-  </section>
+  <div class="panel" id="panel-devre" role="tabpanel" aria-labelledby="sekme-devre" hidden>
+    <section class="kart" aria-labelledby="devreBaslik">
+      <div class="kart-bas" style="margin-bottom: 14px; flex-wrap: wrap;">
+        <h2 id="devreBaslik" style="margin: 0">Canlı devre</h2>
+        <div class="grup" id="devreSecim">
+          <button type="button" data-kart="klasik" aria-pressed="true">Klasik kod</button>
+          <button type="button" data-kart="ml" aria-pressed="false">Makine öğrenmeli kod</button>
+        </div>
+      </div>
+      <div class="devre-kaydir">
+        <svg class="devre" viewBox="0 0 900 500" role="img" aria-label="Arduino Uno, LM35 sensör, MOSFET, pompa, buzzer ve LED bağlantı şeması">
+          <path class="kablo gnd" d="M108 178 V22 H600"/>
+          <path class="kablo gnd" d="M442 100 V112 H460 V22"/>
+          <path class="kablo gnd" d="M512 100 V112 H530 V22"/>
+          <path class="kablo gnd" d="M582 100 V112 H600 V22"/>
+          <circle class="dugum" cx="460" cy="22" r="4"/>
+          <circle class="dugum" cx="530" cy="22" r="4"/>
 
-  <section class="anlatim" aria-label="Nasıl çalışıyor">
-    <article class="kart">
-      <h3><span class="nokta klasik"></span>Klasik sürüm</h3>
-      <p>Saniyede bir 10 ölçümün ortalamasını alır. 30 °C'de pompayı açar, 27 °C'ye inince kapatır; arada sıcaklık arttıkça pompa gücünü de artırır, 45 °C'de tam güce çıkar.</p>
-      <p>55 °C'de ya da sensör koptuğunda alarm verir ve pompayı tam güçte çalıştırır.</p>
-      <p><code>klasik/klasik.ino</code></p>
-    </article>
-    <article class="kart">
-      <h3><span class="nokta ml"></span>Makine öğrenmeli sürüm</h3>
-      <p>Aynı kurallara ek olarak küçük bir model taşır: sıcaklığın son 5 saniyedeki değişimine ve pompa gücüne bakıp 20 saniye sonraki sıcaklığı tahmin eder.</p>
-      <p>Her saniye 20 saniye önceki tahminini gerçek değerle karşılaştırır ve hatayı azaltacak yönde üç ağırlığını günceller. Pompayı tahmine göre erkenden çalıştırır.</p>
-      <p><code>ml/ml.ino</code></p>
-    </article>
-  </section>
+          <path class="kablo d8" d="M198 178 V130 H422 V100"/>
+          <path class="kablo d7" d="M212 178 V140 H492 V100"/>
+          <path class="kablo d4" d="M254 178 V150 H562 V100"/>
+          <path class="kablo d3" id="kabloD3" d="M268 178 V160 H545 V300 H606 V285"/>
+
+          <rect class="direnc" x="360" y="135" width="30" height="10" rx="4"/>
+          <rect x="367" y="135" width="3" height="10" fill="#c0392b"/><rect x="374" y="135" width="3" height="10" fill="#c0392b"/><rect x="381" y="135" width="3" height="10" fill="#6b4a2b"/>
+          <rect class="direnc" x="440" y="145" width="30" height="10" rx="4"/>
+          <rect x="447" y="145" width="3" height="10" fill="#c0392b"/><rect x="454" y="145" width="3" height="10" fill="#c0392b"/><rect x="461" y="145" width="3" height="10" fill="#6b4a2b"/>
+          <text class="kucuk" x="375" y="128" text-anchor="middle">220 Ω</text>
+          <text class="kucuk" x="455" y="168" text-anchor="middle">220 Ω</text>
+
+          <path class="kablo a0" d="M262 362 V395 H435 V380"/>
+          <path class="kablo gnd" d="M206 362 V410 H425 V400 a5 5 0 0 1 0 -10 V380"/>
+          <path class="kablo v5" d="M186 362 V425 H445 V380"/>
+          <path class="kablo gnd" d="M300 410 V420 a5 5 0 0 0 0 10 V470 H855 V110"/>
+          <path class="kablo gnd" d="M634 285 V470"/>
+          <circle class="dugum" cx="300" cy="410" r="4"/>
+          <circle class="dugum" cx="634" cy="470" r="4"/>
+
+          <path class="kablo tab" d="M620 198 V185 H745 V218"/>
+          <path class="kablo v12" d="M815 110 V150 H775 V218"/>
+          <path class="kablo tab" d="M745 200 H752 M768 200 H775" style="stroke-width: 2.4"/>
+          <rect class="govde" x="752" y="195" width="16" height="10" rx="2"/>
+          <rect x="763" y="195" width="3" height="10" fill="#c9cdd3"/>
+          <text class="kucuk" x="783" y="197">diyot</text>
+          <text class="kucuk" x="783" y="208">1N4007</text>
+
+          <rect x="40" y="170" width="300" height="200" rx="10" fill="#0e7c8c" stroke="#0a5f6b" stroke-width="1.5"/>
+          <rect class="metal" x="22" y="200" width="46" height="44" rx="3"/>
+          <rect class="govde" x="26" y="300" width="42" height="46" rx="3"/>
+          <rect class="govde" x="170" y="282" width="124" height="28" rx="3"/>
+          <circle class="metal" cx="92" cy="196" r="7"/>
+          <text x="92" y="275" fill="#ffffff" font-size="20" font-weight="700" letter-spacing="1">UNO</text>
+          <text x="92" y="290" fill="#cfe9ee" font-size="9">Arduino</text>
+          <rect class="govde" x="100" y="172" width="222" height="12" rx="2"/>
+          <rect class="govde" x="176" y="356" width="162" height="12" rx="2"/>
+          <g id="pinler"></g>
+
+          <circle class="govde" cx="432" cy="72" r="24"/>
+          <circle cx="432" cy="72" r="5" fill="#3a3a40"/>
+          <path class="kablo tab" d="M422 96 V100 M442 96 V100" style="stroke-width: 2.4"/>
+          <path class="ses" id="ses1" d="M462 58 q8 14 0 28"/>
+          <path class="ses" id="ses2" d="M402 58 q-8 14 0 28"/>
+          <text class="etiket" x="432" y="42" text-anchor="middle">Buzzer</text>
+
+          <circle class="hale" id="kirmiziHale" cx="502" cy="68" r="26" fill="#ff3b30"/>
+          <path class="isik" id="kirmiziLed" d="M488 86 V66 a14 14 0 0 1 28 0 V86 Z" fill="#ff3b30"/>
+          <path d="M488 86 V66 a14 14 0 0 1 28 0 V86 Z" fill="none" stroke="#b3261e" stroke-width="1.2"/>
+          <path class="kablo tab" d="M492 86 V100 M512 86 V100" style="stroke-width: 2.4"/>
+          <text class="etiket" x="502" y="42" text-anchor="middle">Alarm</text>
+
+          <circle class="hale" id="yesilHale" cx="572" cy="68" r="26" fill="#30d158"/>
+          <path class="isik" id="yesilLed" d="M558 86 V66 a14 14 0 0 1 28 0 V86 Z" fill="#30d158"/>
+          <path d="M558 86 V66 a14 14 0 0 1 28 0 V86 Z" fill="none" stroke="#1f9d55" stroke-width="1.2"/>
+          <path class="kablo tab" d="M562 86 V100 M582 86 V100" style="stroke-width: 2.4"/>
+          <text class="etiket" x="572" y="42" text-anchor="middle">Normal</text>
+
+          <rect class="metal" x="602" y="198" width="36" height="16" rx="2"/>
+          <circle cx="620" cy="206" r="4" fill="var(--kart-zemin)" stroke="#7d8794" stroke-width="0.8"/>
+          <rect class="govde" x="598" y="212" width="44" height="50" rx="3"/>
+          <path class="kablo tab" d="M606 262 V285 M620 262 V276 M634 262 V285" style="stroke-width: 2.4"/>
+          <text class="pin" x="606" y="256" text-anchor="middle">G</text>
+          <text class="pin" x="620" y="256" text-anchor="middle">D</text>
+          <text class="pin" x="634" y="256" text-anchor="middle">S</text>
+          <text class="etiket" x="650" y="232">MOSFET</text>
+          <text class="kucuk" x="650" y="245">IRLZ44N</text>
+          <text class="canli" id="pwmYazi" x="551" y="316">PWM 0</text>
+
+          <circle cx="760" cy="262" r="44" fill="#2a78d6" stroke="#1c5aa6" stroke-width="1.5"/>
+          <circle cx="760" cy="262" r="30" fill="#e9f1fb" stroke="#1c5aa6" stroke-width="1"/>
+          <g id="pervane">
+            <path d="M760 262 L760 236 A26 26 0 0 1 778 244 Z M760 262 L782.5 275 A26 26 0 0 1 766 287.5 Z M760 262 L737.5 275 A26 26 0 0 1 740 248 Z" fill="#1c5aa6"/>
+          </g>
+          <circle cx="760" cy="262" r="5" fill="#0f3a70"/>
+          <rect class="metal" x="740" y="214" width="10" height="9" rx="1"/>
+          <rect class="metal" x="770" y="214" width="10" height="9" rx="1"/>
+          <text class="pin" x="745" y="234" text-anchor="middle" style="fill:#0f3a70">−</text>
+          <text class="pin" x="775" y="234" text-anchor="middle" style="fill:#0f3a70">+</text>
+          <text class="etiket" x="760" y="325" text-anchor="middle">Soğutma pompası</text>
+          <text class="canli" id="pompaYazi" x="760" y="339" text-anchor="middle">duruyor</text>
+
+          <rect class="govde" x="795" y="40" width="80" height="70" rx="6"/>
+          <text x="835" y="72" fill="#ffffff" font-size="15" font-weight="700" text-anchor="middle">12 V</text>
+          <text x="835" y="87" fill="#b9bec6" font-size="9" text-anchor="middle">güç kaynağı</text>
+          <text class="pin" x="815" y="104" text-anchor="middle">+</text>
+          <text class="pin" x="855" y="104" text-anchor="middle">−</text>
+
+          <rect class="batarya" x="462" y="325" width="140" height="50" rx="8"/>
+          <path d="M497 325 V375 M532 325 V375 M567 325 V375" stroke="var(--border)" stroke-width="1.5"/>
+          <text class="etiket" x="532" y="346" text-anchor="middle">Batarya</text>
+          <text class="canli" id="bataryaYazi" x="532" y="362" text-anchor="middle">20,0 °C</text>
+          <path class="govde" d="M418 357 V343 a17 12 0 0 1 34 0 V357 Z"/>
+          <path class="kablo tab" d="M425 357 V380 M435 357 V380 M445 357 V380" style="stroke-width: 2.4"/>
+          <text class="etiket" x="435" y="325" text-anchor="middle">LM35</text>
+          <text class="canli" id="a0Yazi" x="274" y="390">A0 = 41</text>
+
+          <text class="kucuk" x="116" y="16">GND hattı</text>
+          <text class="kucuk" x="310" y="486">ortak GND</text>
+        </svg>
+      </div>
+
+      <div class="seri-bas"><span>Seri monitör · 9600 baud</span><span id="seriKart">Klasik kod</span></div>
+      <pre class="seri" id="seri" aria-live="off"></pre>
+    </section>
+
+    <section class="kart" aria-labelledby="baglantiBaslik">
+      <h2 id="baglantiBaslik">Bağlantı listesi</h2>
+      <div class="tablo-kap">
+        <table>
+          <thead><tr><th scope="col">Parça</th><th scope="col" style="text-align:left">Uç</th><th scope="col" style="text-align:left">Nereye</th></tr></thead>
+          <tbody>
+            <tr><td><span class="renk" style="background:#d43a3a"></span>LM35 sıcaklık sensörü</td><td style="text-align:left">VCC</td><td style="text-align:left">Arduino 5V</td></tr>
+            <tr><td><span class="renk" style="background:#d9a400"></span>LM35 sıcaklık sensörü</td><td style="text-align:left">OUT</td><td style="text-align:left">Arduino A0</td></tr>
+            <tr><td><span class="renk" style="background:var(--kablo-gnd)"></span>LM35 sıcaklık sensörü</td><td style="text-align:left">GND</td><td style="text-align:left">Arduino GND</td></tr>
+            <tr><td><span class="renk" style="background:#2a78d6"></span>MOSFET (IRLZ44N)</td><td style="text-align:left">Gate</td><td style="text-align:left">Arduino D3 (PWM)</td></tr>
+            <tr><td><span class="renk" style="background:#7d8794"></span>MOSFET (IRLZ44N)</td><td style="text-align:left">Drain</td><td style="text-align:left">Pompa −</td></tr>
+            <tr><td><span class="renk" style="background:var(--kablo-gnd)"></span>MOSFET (IRLZ44N)</td><td style="text-align:left">Source</td><td style="text-align:left">Ortak GND</td></tr>
+            <tr><td><span class="renk" style="background:#d43a3a"></span>Pompa</td><td style="text-align:left">+</td><td style="text-align:left">12 V kaynak +</td></tr>
+            <tr><td><span class="renk" style="background:#7d8794"></span>Diyot (1N4007)</td><td style="text-align:left">Çizgili uç</td><td style="text-align:left">Pompa +, diğer uç pompa −</td></tr>
+            <tr><td><span class="renk" style="background:#8a55d6"></span>Buzzer</td><td style="text-align:left">+</td><td style="text-align:left">Arduino D8</td></tr>
+            <tr><td><span class="renk" style="background:#e0662a"></span>Kırmızı LED (220 Ω ile)</td><td style="text-align:left">Uzun bacak</td><td style="text-align:left">Arduino D7</td></tr>
+            <tr><td><span class="renk" style="background:#1f9d55"></span>Yeşil LED (220 Ω ile)</td><td style="text-align:left">Uzun bacak</td><td style="text-align:left">Arduino D4</td></tr>
+            <tr><td><span class="renk" style="background:var(--kablo-gnd)"></span>12 V kaynak</td><td style="text-align:left">−</td><td style="text-align:left">Ortak GND (Arduino GND ile birleşik)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="not">Pompa Arduino pininden beslenmez; pin yalnızca MOSFET'i açıp kapatır, akım 12 V kaynaktan gelir. Diyot, pompa dururken oluşan ters gerilimden MOSFET'i korur.</p>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-analiz" role="tabpanel" aria-labelledby="sekme-analiz" hidden>
+    <section class="kart" aria-labelledby="hatBaslik">
+      <div class="kart-bas" style="margin-bottom: 14px; flex-wrap: wrap;">
+        <h2 id="hatBaslik" style="margin: 0">Model nasıl hazırlandı</h2>
+        <span class="rozet" id="onnxRozet"><i></i><span id="onnxYazi">ONNX modeli yükleniyor</span></span>
+      </div>
+      <div class="adimlar">
+        <div class="adim"><b>Veri</b><span id="adimVeri">Simülasyonda rastgele sürüşler</span></div>
+        <div class="adim"><b>Python eğitimi</b><span>scikit-learn, 3 girdi → 8 nöron → 1 çıktı</span></div>
+        <div class="adim"><b>ONNX</b><span><code>model.onnx</code> dosyasına aktarıldı; bu sayfa onu ONNX Runtime ile çalıştırıyor</span></div>
+        <div class="adim"><b>Arduino</b><span>Aynı ağırlıklar <code>model.h</code> olarak karta gömüldü</span></div>
+      </div>
+      <p class="not">Model üç şeye bakar: sıcaklığın son 5 saniyedeki değişimi, pompanın o anki gücü ve sıcaklığın kendisi. Çıktısı, sıcaklığın 20 saniye sonra kaç derece değişeceğidir.</p>
+    </section>
+
+    <section class="kart" aria-labelledby="dogrulukBaslik">
+      <h2 id="dogrulukBaslik">Tahmin doğruluğu</h2>
+      <p class="metin">Modelin hiç görmediği sürüşlerde, 20 saniye sonrası için ortalama tahmin hatası. Düşük olan iyi.</p>
+      <div class="karolar" id="maeKarolar"></div>
+      <div class="cift" style="margin-top: 16px">
+        <div>
+          <div class="grafik-bas">Gerçek değişim ile modelin tahmini (°C)</div>
+          <div id="sacilimGrafik"></div>
+        </div>
+        <div>
+          <div class="grafik-bas">Eğitim sırasında hata (her tur)</div>
+          <div id="kayipGrafik"></div>
+        </div>
+      </div>
+      <p class="not" id="dogrulukNot"></p>
+    </section>
+
+    <section class="kart" aria-labelledby="senaryoBaslik">
+      <h2 id="senaryoBaslik">Soğutmaya etkisi</h2>
+      <p class="metin">Dört senaryoda 40 dakikalık sürüş, 20 °C ortam. Her satırda bataryanın ulaştığı en yüksek sıcaklık.</p>
+      <div class="aciklama">
+        <span><span class="nokta klasik"></span>Klasik</span>
+        <span><span class="nokta ml"></span>Makine öğrenmeli</span>
+      </div>
+      <div id="senaryoGrafik" style="max-width: 820px"></div>
+      <div class="tablo-kap" style="margin-top: 12px">
+        <table>
+          <thead>
+            <tr><th scope="col">Senaryo</th><th scope="col">Tepe (klasik)</th><th scope="col">Tepe (ML)</th><th scope="col">32 °C üstü (klasik)</th><th scope="col">32 °C üstü (ML)</th><th scope="col">Pompa (klasik)</th><th scope="col">Pompa (ML)</th></tr>
+          </thead>
+          <tbody id="senaryoTablo"></tbody>
+        </table>
+      </div>
+      <p class="not">Tahminin faydası ani ısınmalarda görülüyor. Uzun süren sabit yükte iki kod aynı sıcaklığa oturuyor, çünkü orada öngörülecek bir değişim kalmıyor.</p>
+    </section>
+
+    <section class="kart" aria-labelledby="ogrenmeBaslik">
+      <h2 id="ogrenmeBaslik">Cihazda öğrenmeye devam</h2>
+      <p class="metin">Kart, Python'dan gelen modelle başlar ve sıfırdan öğrenmez. Çalışırken her saniye 20 saniye önceki tahminini gerçek değerle karşılaştırıp yalnızca son katmanı çok küçük adımlarla düzeltir. Öğrendiklerini kalıcı hafızaya yazar; kapatıp açınca kaldığı yerden sürdürür.</p>
+      <div class="karolar">
+        <div class="karo"><div class="ad">Bu tarayıcıdaki öğrenme adımı</div><div class="deger" id="canliAdim">0</div></div>
+        <div class="karo one"><div class="ad">Son 5 dakikada hata, öğrenen model</div><div class="deger"><span id="canliOgrenen">–</span><small> °C</small></div></div>
+        <div class="karo"><div class="ad">Son 5 dakikada hata, Python modeli</div><div class="deger"><span id="canliSabit">–</span><small> °C</small></div></div>
+      </div>
+      <div class="grup" style="margin: 12px 0 4px">
+        <button type="button" id="ogrenileniSil">Öğrenileni sil, Python modeline dön</button>
+      </div>
+      <div class="grafik-bas" style="margin-top: 18px">Eğitimde görmediği farklı bir bataryada tahmin hatası (°C, 15 dakikalık ortalamalar)</div>
+      <div class="aciklama" style="margin-top: 6px">
+        <span><i style="background: var(--seri-ml)"></i>Öğrenmeye devam eden</span>
+        <span><i class="kesik"></i>Python modeli, sabit</span>
+      </div>
+      <div id="ogrenmeGrafik" style="max-width: 640px"></div>
+      <p class="not" id="ogrenmeNot"></p>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-kod" role="tabpanel" aria-labelledby="sekme-kod" hidden>
+    <section class="kart" aria-labelledby="kodBaslik">
+      <h2 id="kodBaslik">Kaynak kod</h2>
+      <div class="grup" id="kodSecim">
+        <button type="button" data-dosya="klasik.ino" aria-pressed="true">klasik.ino</button>
+        <button type="button" data-dosya="ml.ino" aria-pressed="false">ml.ino</button>
+        <button type="button" data-dosya="model.h" aria-pressed="false">model.h</button>
+        <button type="button" data-dosya="egit.py" aria-pressed="false">egit.py</button>
+      </div>
+      <pre class="kod-kap" id="kodKap" tabindex="0">Yükleniyor…</pre>
+      <p class="not" id="kodNot"></p>
+    </section>
+  </div>
 
   <footer>
-    Buradaki simülasyon Arduino kodunun satır satır aynısını çalıştırır; batarya modeli basitleştirilmiştir. Kodlar <a href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">GitHub'da</a>.
+    Simülasyon Arduino kodunun satır satır aynısını çalıştırır; batarya modeli basitleştirilmiştir, gerçek bataryada sayılar farklı çıkar. Kodlar <a href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">GitHub'da</a>.
   </footer>
 </div>
 
-<script src="sim.js?v=1"></script>
+<script src="ort/ort.wasm.min.js"></script>
+<script src="sim.js?v=2"></script>
 <script>
-(function () {
+(async function () {
   const S = window.Sogutma;
   const $ = (kimlik) => document.getElementById(kimlik);
   const pencere = 600;
   const azHareket = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const model = await fetch("model.json?v=2").then((y) => y.json());
+  const analiz = await fetch("analiz.json?v=2").then((y) => y.json());
+  const modelImzasi = String(model.cikisSabiti) + "|" + String(model.gizliSabit[0]);
 
   const senaryolar = {
     hizlanma: { ad: "50 sn tam gaz, 190 sn dinlenme", yuk: (t) => (t % 240 < 50 ? 100 : 0) },
@@ -310,11 +619,20 @@ footer a { color: var(--fg); }
   let hiz = 10;
   let calisiyor = true;
   let kopuk = false;
+  let mesgul = false;
   let birikim = 0;
   let oncekiAn = 0;
   let akisK = 0;
   let akisM = 0;
+  let pervaneAcisi = 0;
   let imlec = null;
+  let etkinSekme = "simulasyon";
+  let devreKarti = "klasik";
+  let onnxOturum = null;
+  let seriK = [];
+  let seriM = [];
+  let hataPenceresi = [];
+  let sonKayit = 0;
 
   function sayi(deger, basamak) {
     return deger.toFixed(basamak).replace(".", ",");
@@ -326,7 +644,28 @@ footer a { color: var(--fg); }
     return String(d).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
 
-  function sifirla() {
+  function ogrenilenOku() {
+    try {
+      const kayit = JSON.parse(localStorage.getItem("sogutma-ogrenilen"));
+      if (kayit && kayit.imza === modelImzasi && kayit.cikisAgirlik.length === model.gizliSayisi && kayit.cikisAgirlik.every(Number.isFinite)) {
+        return kayit;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function ogrenilenYaz() {
+    try {
+      localStorage.setItem("sogutma-ogrenilen", JSON.stringify({
+        imza: modelImzasi,
+        cikisAgirlik: kM.cikisAgirlik,
+        cikisSabiti: kM.cikisSabiti,
+        guncellemeSayisi: kM.guncellemeSayisi
+      }));
+    } catch (e) {}
+  }
+
+  function sifirla(ogrenilen) {
     const ortam = Number($("ortam").value);
     fK = S.fizikOlustur();
     fM = S.fizikOlustur();
@@ -336,11 +675,13 @@ footer a { color: var(--fg); }
       f.sensor = ortam;
     }
     kK = S.klasikOlustur();
-    kM = S.mlOlustur();
+    kM = S.mlOlustur(model, ogrenilen);
     gecmis = [];
     zaman = 0;
     birikim = 0;
     imlec = null;
+    seriK = [];
+    seriM = [];
     ozet = { tepeK: 0, tepeM: 0, ustK: 0, ustM: 0, pompaK: 0, pompaM: 0 };
     sonK = { sicaklik: ortam, tahmin: ortam, pompaGucu: 0, ariza: false, durum: "NORMAL" };
     sonM = { sicaklik: ortam, tahmin: ortam, pompaGucu: 0, ariza: false, durum: "NORMAL" };
@@ -348,7 +689,41 @@ footer a { color: var(--fg); }
     yaz();
   }
 
-  function tik() {
+  async function gizliHesapla(girdiler) {
+    if (!onnxOturum) {
+      return girdiler.map((girdi) => S.gizliKatmanHesapla(model, girdi));
+    }
+    const tensor = new ort.Tensor("float32", Float32Array.from(girdiler.flat()), [girdiler.length, model.girdiSayisi]);
+    const cikti = await onnxOturum.run({ girdi: tensor }, ["gizli"]);
+    const veri = cikti.gizli.data;
+    return girdiler.map((_, i) => Array.from(veri.subarray(i * model.gizliSayisi, (i + 1) * model.gizliSayisi)));
+  }
+
+  async function mlAdim() {
+    S.fizikIlerlet(fM);
+    const olcum = S.mlOlc(kM, fM);
+    let sonuc;
+    if (olcum.ariza) {
+      sonuc = S.mlKarar(kM, olcum, null, null);
+    } else {
+      const girdiler = olcum.eskiGirdi ? [olcum.girdi, olcum.eskiGirdi] : [olcum.girdi];
+      const gizliler = await gizliHesapla(girdiler);
+      sonuc = S.mlKarar(kM, olcum, gizliler[0], gizliler[1] || null);
+    }
+    fM.pompaPwm = sonuc.pompaGucu;
+    return sonuc;
+  }
+
+  function seriSatiri(sonuc, ml) {
+    const durum = sonuc.durum.replace("Ö", "O").replace("Ğ", "G").replace("İ", "I");
+    let satir = "Sicaklik: " + sonuc.sicaklik.toFixed(1);
+    if (ml) satir += " C | 20 sn sonra tahmin: " + sonuc.tahmin.toFixed(1);
+    satir += " C | Pompa: %" + Math.trunc((sonuc.pompaGucu * 100) / 255);
+    if (ml) satir += " | Ogrenme adimi: " + kM.guncellemeSayisi;
+    return satir + " | Durum: " + durum;
+  }
+
+  async function tik() {
     zaman++;
     const tanim = senaryolar[senaryo];
     if (tanim.yuk) {
@@ -362,7 +737,15 @@ footer a { color: var(--fg); }
       f.sensorKopuk = kopuk;
     }
     sonK = S.saniyeIlerlet(fK, kK, S.klasikAdim);
-    sonM = S.saniyeIlerlet(fM, kM, S.mlAdim);
+    sonM = await mlAdim();
+    if (kM.sonHata !== null) {
+      hataPenceresi.push([Math.abs(kM.sonHata), Math.abs(kM.sonHataBaslangic)]);
+      if (hataPenceresi.length > 300) hataPenceresi.shift();
+    }
+    seriK.push(seriSatiri(sonK, false));
+    seriM.push(seriSatiri(sonM, true));
+    if (seriK.length > 40) seriK.shift();
+    if (seriM.length > 40) seriM.shift();
     gecmis.push({ t: zaman, k: fK.batarya, m: fM.batarya, pk: fK.pompaPwm / 2.55, pm: fM.pompaPwm / 2.55 });
     if (gecmis.length > pencere) {
       gecmis.shift();
@@ -388,41 +771,69 @@ footer a { color: var(--fg); }
     $("senaryoYazi").textContent = senaryolar[senaryo].ad;
     $("sureYazi").textContent = sure(zaman);
 
-    $("kSicaklik").textContent = sayi(fK.batarya, 1);
-    $("mSicaklik").textContent = sayi(fM.batarya, 1);
-    durumYaz($("kDurum"), sonK);
-    durumYaz($("mDurum"), sonM);
-
-    const pk = Math.round(fK.pompaPwm / 2.55);
-    const pm = Math.round(fM.pompaPwm / 2.55);
-    $("kPompa").textContent = "%" + pk;
-    $("mPompa").textContent = "%" + pm;
-    $("kCubuk").style.width = pk + "%";
-    $("mCubuk").style.width = pm + "%";
-    $("kOkunan").textContent = sonK.ariza ? "okunamıyor" : sayi(sonK.sicaklik, 1) + " °C";
-
-    if (sonM.ariza) {
-      $("mTahmin").textContent = "Sensör okunamıyor, pompa tam güçte";
-    } else if (kM.kayitSayisi < S.ayar.gecmisBoyutu) {
-      $("mTahmin").textContent = "20 sn sonrası için tahmin: veri topluyor";
-    } else {
-      $("mTahmin").textContent = "20 sn sonrası için tahmin: " + sayi(sonM.tahmin, 1) + " °C";
-    }
-    $("mAgirlik").textContent = sayi(kM.agirlikEgim, 2) + " · " + sayi(kM.agirlikPompa, 2) + " · " + sayi(kM.agirlikSabit, 2);
-
-    if (zaman > 0) {
-      $("oTepeK").textContent = sayi(ozet.tepeK, 1) + " °C";
-      $("oTepeM").textContent = sayi(ozet.tepeM, 1) + " °C";
-      $("oUstK").textContent = sure(ozet.ustK);
-      $("oUstM").textContent = sure(ozet.ustM);
-      $("oPompaK").textContent = "%" + sayi(ozet.pompaK / zaman, 1);
-      $("oPompaM").textContent = "%" + sayi(ozet.pompaM / zaman, 1);
-    } else {
-      for (const kimlik of ["oTepeK", "oTepeM", "oUstK", "oUstM", "oPompaK", "oPompaM"]) {
-        $(kimlik).textContent = "–";
+    if (etkinSekme === "simulasyon") {
+      $("kSicaklik").textContent = sayi(fK.batarya, 1);
+      $("mSicaklik").textContent = sayi(fM.batarya, 1);
+      durumYaz($("kDurum"), sonK);
+      durumYaz($("mDurum"), sonM);
+      const pk = Math.round(fK.pompaPwm / 2.55);
+      const pm = Math.round(fM.pompaPwm / 2.55);
+      $("kPompa").textContent = "%" + pk;
+      $("mPompa").textContent = "%" + pm;
+      $("kCubuk").style.width = pk + "%";
+      $("mCubuk").style.width = pm + "%";
+      $("kOkunan").textContent = sonK.ariza ? "okunamıyor" : sayi(sonK.sicaklik, 1) + " °C";
+      $("mTahmin").textContent = sonM.ariza ? "Sensör okunamıyor, pompa tam güçte" : "20 sn sonrası için tahmin: " + sayi(sonM.tahmin, 1) + " °C";
+      $("mAdim").textContent = kM.guncellemeSayisi.toLocaleString("tr-TR");
+      if (zaman > 0) {
+        $("oTepeK").textContent = sayi(ozet.tepeK, 1) + " °C";
+        $("oTepeM").textContent = sayi(ozet.tepeM, 1) + " °C";
+        $("oUstK").textContent = sure(ozet.ustK);
+        $("oUstM").textContent = sure(ozet.ustM);
+        $("oPompaK").textContent = "%" + sayi(ozet.pompaK / zaman, 1);
+        $("oPompaM").textContent = "%" + sayi(ozet.pompaM / zaman, 1);
+      } else {
+        for (const kimlik of ["oTepeK", "oTepeM", "oUstK", "oUstM", "oPompaK", "oPompaM"]) $(kimlik).textContent = "–";
       }
+      grafikleriCiz();
     }
-    grafikleriCiz();
+    if (etkinSekme === "devre") devreYaz();
+    if (etkinSekme === "analiz") canliOgrenmeYaz();
+  }
+
+  function devreYaz() {
+    const ml = devreKarti === "ml";
+    const f = ml ? fM : fK;
+    const son = ml ? sonM : sonK;
+    const alarm = son.ariza || son.sicaklik >= S.ayar.alarmSicakligi;
+    $("kirmiziLed").classList.toggle("yanik", alarm);
+    $("kirmiziHale").classList.toggle("yanik", alarm);
+    $("yesilLed").classList.toggle("yanik", !alarm);
+    $("yesilHale").classList.toggle("yanik", !alarm);
+    $("ses1").classList.toggle("yanik", alarm);
+    $("ses2").classList.toggle("yanik", alarm);
+    $("pwmYazi").textContent = "PWM " + f.pompaPwm;
+    $("pompaYazi").textContent = f.pompaPwm > 0 ? "%" + Math.round(f.pompaPwm / 2.55) + " güç" : "duruyor";
+    $("bataryaYazi").textContent = sayi(f.batarya, 1) + " °C";
+    $("a0Yazi").textContent = son.ariza ? "A0 = 0 (kopuk)" : "A0 = " + Math.round((son.sicaklik * 1023) / 500);
+    $("kabloD3").style.opacity = f.pompaPwm > 0 ? 1 : 0.45;
+    $("seriKart").textContent = ml ? "Makine öğrenmeli kod" : "Klasik kod";
+    const kutu = $("seri");
+    const altta = kutu.scrollTop + kutu.clientHeight >= kutu.scrollHeight - 30;
+    kutu.textContent = (ml ? seriM : seriK).join("\n");
+    if (altta) kutu.scrollTop = kutu.scrollHeight;
+  }
+
+  function canliOgrenmeYaz() {
+    $("canliAdim").textContent = kM.guncellemeSayisi.toLocaleString("tr-TR");
+    if (hataPenceresi.length >= 30) {
+      const ort = (i) => hataPenceresi.reduce((t, h) => t + h[i], 0) / hataPenceresi.length;
+      $("canliOgrenen").textContent = sayi(ort(0), 2);
+      $("canliSabit").textContent = sayi(ort(1), 2);
+    } else {
+      $("canliOgrenen").textContent = "–";
+      $("canliSabit").textContent = "–";
+    }
   }
 
   function renk(ad) {
@@ -452,6 +863,7 @@ footer a { color: var(--fg); }
 
   function grafikCiz(tuval, secenek) {
     const { c, g, y } = tuvalHazirla(tuval);
+    if (g === 0) return;
     const alanY = y - bosluk.ust - bosluk.alt;
     const yKonum = (deger) => bosluk.ust + (1 - (deger - secenek.enAz) / (secenek.enCok - secenek.enAz)) * alanY;
     const soluk = renk("--dim");
@@ -493,18 +905,15 @@ footer a { color: var(--fg); }
     if (gecmis.length > 0) {
       c.fillStyle = soluk;
       c.textAlign = "center";
-      const ilk = gecmis[0].t;
       for (let i = 0; i < gecmis.length; i++) {
         if (gecmis[i].t % 120 === 0) {
           const px = xKonum(i, g);
-          if (px > bosluk.sol + 16 && px < g - bosluk.sag - 16) {
-            c.fillText(sure(gecmis[i].t), px, y - 9);
-          }
+          if (px > bosluk.sol + 16 && px < g - bosluk.sag - 16) c.fillText(sure(gecmis[i].t), px, y - 9);
         }
       }
       if (gecmis.length < 120) {
         c.textAlign = "left";
-        c.fillText(sure(ilk), bosluk.sol, y - 9);
+        c.fillText(sure(gecmis[0].t), bosluk.sol, y - 9);
       }
     }
 
@@ -523,16 +932,19 @@ footer a { color: var(--fg); }
       c.stroke();
     }
 
-    if (imlec !== null && gecmis[imlec]) {
-      const px = Math.round(xKonum(imlec, g)) + 0.5;
-      c.strokeStyle = soluk;
-      c.lineWidth = 1;
-      c.beginPath();
-      c.moveTo(px, bosluk.ust);
-      c.lineTo(px, y - bosluk.alt);
-      c.stroke();
+    const isaretIndeksi = imlec !== null && gecmis[imlec] ? imlec : gecmis.length - 1;
+    if (gecmis.length > 1) {
+      const px = xKonum(isaretIndeksi, g);
+      if (imlec !== null && gecmis[imlec]) {
+        c.strokeStyle = soluk;
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(Math.round(px) + 0.5, bosluk.ust);
+        c.lineTo(Math.round(px) + 0.5, y - bosluk.alt);
+        c.stroke();
+      }
       for (const seri of secenek.seriler) {
-        const py = yKonum(gecmis[imlec][seri.anahtar]);
+        const py = yKonum(gecmis[isaretIndeksi][seri.anahtar]);
         c.fillStyle = zemin;
         c.beginPath();
         c.arc(px, py, 6, 0, Math.PI * 2);
@@ -542,29 +954,18 @@ footer a { color: var(--fg); }
         c.arc(px, py, 4, 0, Math.PI * 2);
         c.fill();
       }
-    } else if (secenek.ucEtiket && gecmis.length > 1) {
-      const son = gecmis[gecmis.length - 1];
-      const px = xKonum(gecmis.length - 1, g);
-      const uclar = secenek.seriler.map((seri) => ({ seri, py: yKonum(son[seri.anahtar]), deger: son[seri.anahtar] }));
-      uclar.sort((a, b) => a.py - b.py);
-      if (uclar[1].py - uclar[0].py < 15) {
-        const orta = (uclar[0].py + uclar[1].py) / 2;
-        uclar[0].py = orta - 7.5;
-        uclar[1].py = orta + 7.5;
-      }
-      for (const uc of uclar) {
-        const gercekY = yKonum(uc.deger);
-        c.fillStyle = zemin;
-        c.beginPath();
-        c.arc(px, gercekY, 6, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = renk(uc.seri.renk);
-        c.beginPath();
-        c.arc(px, gercekY, 4, 0, Math.PI * 2);
-        c.fill();
-        if (px + 10 < g - bosluk.sag + 2) {
-          c.fillStyle = yazi;
-          c.textAlign = "left";
+      if (imlec === null && secenek.ucEtiket && px + 10 < g - bosluk.sag) {
+        const son = gecmis[gecmis.length - 1];
+        const uclar = secenek.seriler.map((seri) => ({ seri, py: yKonum(son[seri.anahtar]), deger: son[seri.anahtar] }));
+        uclar.sort((a, b) => a.py - b.py);
+        if (uclar[1].py - uclar[0].py < 15) {
+          const orta = (uclar[0].py + uclar[1].py) / 2;
+          uclar[0].py = orta - 7.5;
+          uclar[1].py = orta + 7.5;
+        }
+        c.fillStyle = yazi;
+        c.textAlign = "left";
+        for (const uc of uclar) {
           c.fillText(uc.seri.kisa + " " + sayi(uc.deger, 1), px + 10, Math.min(Math.max(uc.py, bosluk.ust + 6), y - bosluk.alt - 6));
         }
       }
@@ -572,6 +973,7 @@ footer a { color: var(--fg); }
   }
 
   function grafikleriCiz() {
+    if (etkinSekme !== "simulasyon") return;
     let enAz = Infinity;
     let enCok = -Infinity;
     for (const kayit of gecmis) {
@@ -590,29 +992,13 @@ footer a { color: var(--fg); }
     for (let d = Math.ceil(enAz / adim) * adim; d <= enCok; d += adim) izgara.push(d);
 
     grafikCiz($("sicaklikGrafik"), {
-      enAz,
-      enCok,
-      izgara,
-      ucEtiket: true,
-      esikler: [
-        { deger: 27, ad: "kapanır" },
-        { deger: 30, ad: "açılır" },
-        { deger: 45, ad: "tam güç" },
-        { deger: 55, ad: "alarm" }
-      ],
-      seriler: [
-        { anahtar: "k", renk: "--seri-klasik", kisa: "Klasik" },
-        { anahtar: "m", renk: "--seri-ml", kisa: "ML" }
-      ]
+      enAz, enCok, izgara, ucEtiket: true,
+      esikler: [{ deger: 27, ad: "kapanır" }, { deger: 30, ad: "açılır" }, { deger: 45, ad: "tam güç" }, { deger: 55, ad: "alarm" }],
+      seriler: [{ anahtar: "k", renk: "--seri-klasik", kisa: "Klasik" }, { anahtar: "m", renk: "--seri-ml", kisa: "ML" }]
     });
     grafikCiz($("pompaGrafik"), {
-      enAz: 0,
-      enCok: 100,
-      izgara: [0, 50, 100],
-      seriler: [
-        { anahtar: "pk", renk: "--seri-klasik", kisa: "Klasik" },
-        { anahtar: "pm", renk: "--seri-ml", kisa: "ML" }
-      ]
+      enAz: 0, enCok: 100, izgara: [0, 50, 100],
+      seriler: [{ anahtar: "pk", renk: "--seri-klasik", kisa: "Klasik" }, { anahtar: "pm", renk: "--seri-ml", kisa: "ML" }]
     });
   }
 
@@ -620,9 +1006,8 @@ footer a { color: var(--fg); }
     const kap = $("grafikKap");
     const kutu = kap.getBoundingClientRect();
     const g = $("sicaklikGrafik").getBoundingClientRect().width;
-    const x = olay.clientX - kutu.left;
     if (gecmis.length < 2) return;
-    let indeks = Math.round(((x - bosluk.sol) / (g - bosluk.sol - bosluk.sag)) * (pencere - 1));
+    let indeks = Math.round(((olay.clientX - kutu.left - bosluk.sol) / (g - bosluk.sol - bosluk.sag)) * (pencere - 1));
     indeks = Math.max(0, Math.min(gecmis.length - 1, indeks));
     imlec = indeks;
     const kayit = gecmis[indeks];
@@ -638,33 +1023,240 @@ footer a { color: var(--fg); }
     if (sol + genislik > kutu.width) sol = px - genislik - 14;
     if (sol < 0) sol = 0;
     ipucu.style.left = sol + "px";
-    if (!calisiyor) grafikleriCiz();
+    grafikleriCiz();
   }
 
   function ipucuGizle() {
     imlec = null;
     $("ipucu").style.display = "none";
-    if (!calisiyor) grafikleriCiz();
+    grafikleriCiz();
+  }
+
+  function svgCizgi(kap, secenek) {
+    const g = 520;
+    const y = 240;
+    const b = { sol: 44, sag: 14, ust: 12, alt: 34 };
+    const xs = secenek.seriler.flatMap((s) => s.noktalar.map((n) => n[0]));
+    const ys = secenek.seriler.flatMap((s) => s.noktalar.map((n) => n[1]));
+    const xAz = Math.min(...xs);
+    const xCok = Math.max(...xs);
+    const yAz = secenek.yAz !== undefined ? secenek.yAz : Math.min(...ys);
+    const yCok = secenek.yCok !== undefined ? secenek.yCok : Math.max(...ys);
+    const px = (v) => b.sol + ((v - xAz) / (xCok - xAz)) * (g - b.sol - b.sag);
+    const py = (v) => b.ust + (1 - (v - yAz) / (yCok - yAz)) * (y - b.ust - b.alt);
+    let ic = "";
+    for (const deger of secenek.yIzgara) {
+      ic += '<line class="izgara" x1="' + b.sol + '" x2="' + (g - b.sag) + '" y1="' + py(deger) + '" y2="' + py(deger) + '"/>';
+      ic += '<text x="' + (b.sol - 8) + '" y="' + (py(deger) + 4) + '" text-anchor="end">' + String(deger).replace(".", ",") + "</text>";
+    }
+    for (const deger of secenek.xIzgara) {
+      ic += '<text x="' + px(deger) + '" y="' + (y - 14) + '" text-anchor="middle">' + deger + "</text>";
+    }
+    ic += '<text x="' + (g - b.sag) + '" y="' + (y - 1) + '" text-anchor="end">' + secenek.xAd + "</text>";
+    for (const seri of secenek.seriler) {
+      const yol = seri.noktalar.map((n, i) => (i ? "L" : "M") + px(n[0]).toFixed(1) + " " + py(n[1]).toFixed(1)).join(" ");
+      ic += '<path d="' + yol + '" fill="none" stroke="' + seri.renk + '" stroke-width="2" stroke-linejoin="round"' + (seri.kesik ? ' stroke-dasharray="5 4"' : "") + "/>";
+      if (seri.nokta) {
+        for (const n of seri.noktalar) {
+          ic += '<circle cx="' + px(n[0]).toFixed(1) + '" cy="' + py(n[1]).toFixed(1) + '" r="4" fill="' + seri.renk + '" stroke="var(--card)" stroke-width="2"><title>' + seri.ad + " · " + n[0] + " " + secenek.xBirim + ": " + sayi(n[1], 2) + "</title></circle>";
+        }
+      }
+    }
+    kap.innerHTML = '<svg class="svg-grafik" viewBox="0 0 ' + g + " " + y + '" role="img" aria-label="' + secenek.baslik + '">' + ic + "</svg>";
+  }
+
+  function analizCiz() {
+    const e = model.egitim;
+    $("adimVeri").textContent = e.bolumSayisi + " rastgele sürüş, " + (e.egitimSatiri + e.testSatiri).toLocaleString("tr-TR") + " ölçüm";
+
+    const enBuyuk = Math.max(e.maeModel, e.maeSabit, e.maeDuzCizgi);
+    const karolar = [
+      { ad: "Python modeli", deger: e.maeModel, one: true },
+      { ad: "Düz çizgi uzatmak", deger: e.maeDuzCizgi },
+      { ad: "Hiç tahmin etmemek", deger: e.maeSabit }
+    ];
+    $("maeKarolar").innerHTML = karolar.map((k) =>
+      '<div class="karo' + (k.one ? " one" : "") + '"><div class="ad">' + k.ad + '</div><div class="deger">' + sayi(k.deger, 2) + "<small> °C</small></div>" +
+      '<div class="iz"><i style="width:' + ((k.deger / enBuyuk) * 100).toFixed(1) + '%"></i></div></div>').join("");
+    $("dogrulukNot").innerHTML = "Model, sıcaklık değişimindeki oynamanın <b>%" + Math.round(e.r2 * 100) + "</b>'ini açıklıyor. Geri kalanı, 20 saniye içinde sürücünün ne yapacağını bilememekten geliyor.";
+
+    {
+      const g = 520;
+      const y = 240;
+      const b = { sol: 44, sag: 14, ust: 12, alt: 34 };
+      const az = -4;
+      const cok = 5;
+      const px = (v) => b.sol + ((v - az) / (cok - az)) * (g - b.sol - b.sag);
+      const py = (v) => b.ust + (1 - (v - az) / (cok - az)) * (y - b.ust - b.alt);
+      let ic = "";
+      for (const d of [-4, -2, 0, 2, 4]) {
+        ic += '<line class="izgara" x1="' + b.sol + '" x2="' + (g - b.sag) + '" y1="' + py(d) + '" y2="' + py(d) + '"/>';
+        ic += '<text x="' + (b.sol - 8) + '" y="' + (py(d) + 4) + '" text-anchor="end">' + d + "</text>";
+        ic += '<text x="' + px(d) + '" y="' + (y - 14) + '" text-anchor="middle">' + d + "</text>";
+      }
+      ic += '<line class="eksen" x1="' + px(az) + '" y1="' + py(az) + '" x2="' + px(cok) + '" y2="' + py(cok) + '" stroke-dasharray="4 4"/>';
+      ic += '<text x="' + (g - b.sag) + '" y="' + (y - 1) + '" text-anchor="end">gerçek değişim</text>';
+      ic += '<text x="' + (b.sol + 6) + '" y="' + (b.ust + 10) + '">tahmin</text>';
+      for (const [gercek, tahmin] of e.sacilim) {
+        if (gercek < az || gercek > cok || tahmin < az || tahmin > cok) continue;
+        ic += '<circle cx="' + px(gercek).toFixed(1) + '" cy="' + py(tahmin).toFixed(1) + '" r="2.6" fill="var(--seri-ml)" fill-opacity="0.55"/>';
+      }
+      $("sacilimGrafik").innerHTML = '<svg class="svg-grafik" viewBox="0 0 ' + g + " " + y + '" role="img" aria-label="Gerçek ve tahmin edilen sıcaklık değişimi saçılım grafiği">' + ic + "</svg>";
+    }
+
+    const kayip = e.kayipEgrisi.map((v, i) => [i + 1, v]);
+    const kayipCok = Math.ceil(Math.max(...e.kayipEgrisi) * 10) / 10;
+    svgCizgi($("kayipGrafik"), {
+      baslik: "Eğitim kaybı eğrisi", xAd: "tur", xBirim: "tur", yAz: 0, yCok: kayipCok,
+      yIzgara: [0, kayipCok / 2, kayipCok].map((v) => +v.toFixed(2)), xIzgara: [1, 20, 40, 60].filter((v) => v <= kayip.length),
+      seriler: [{ ad: "kayıp", renk: "var(--seri-ml)", noktalar: kayip }]
+    });
+
+    {
+      const satirYuksekligi = 44;
+      const g = 720;
+      const b = { sol: 110, sag: 20, ust: 8, alt: 30 };
+      const tumu = analiz.senaryolar.flatMap((s) => [s.klasik.tepe, s.ml.tepe]);
+      const az = Math.floor(Math.min(...tumu)) - 1;
+      const cok = Math.ceil(Math.max(...tumu)) + 1;
+      const y = b.ust + analiz.senaryolar.length * satirYuksekligi + b.alt;
+      const px = (v) => b.sol + ((v - az) / (cok - az)) * (g - b.sol - b.sag);
+      let ic = "";
+      for (let d = az; d <= cok; d++) {
+        ic += '<line class="izgara" x1="' + px(d) + '" x2="' + px(d) + '" y1="' + b.ust + '" y2="' + (y - b.alt) + '"/>';
+        ic += '<text x="' + px(d) + '" y="' + (y - 10) + '" text-anchor="middle">' + d + "°</text>";
+      }
+      analiz.senaryolar.forEach((s, i) => {
+        const cy = b.ust + i * satirYuksekligi + satirYuksekligi / 2;
+        ic += '<text class="ad" x="' + (b.sol - 12) + '" y="' + (cy + 4) + '" text-anchor="end">' + s.ad + "</text>";
+        ic += '<line x1="' + px(s.ml.tepe) + '" x2="' + px(s.klasik.tepe) + '" y1="' + cy + '" y2="' + cy + '" stroke="var(--dim)" stroke-width="2"/>';
+        ic += '<circle cx="' + px(s.klasik.tepe) + '" cy="' + cy + '" r="6" fill="var(--seri-klasik)" stroke="var(--card)" stroke-width="2"><title>Klasik: ' + sayi(s.klasik.tepe, 1) + " °C</title></circle>";
+        ic += '<circle cx="' + px(s.ml.tepe) + '" cy="' + cy + '" r="6" fill="var(--seri-ml)" stroke="var(--card)" stroke-width="2"><title>Makine öğrenmeli: ' + sayi(s.ml.tepe, 1) + " °C</title></circle>";
+        const fark = s.klasik.tepe - s.ml.tepe;
+        if (fark >= 0.15) {
+          ic += '<text class="ad" x="' + (px(s.klasik.tepe) + 12) + '" y="' + (cy + 4) + '">−' + sayi(fark, 1) + " °C</text>";
+        } else {
+          ic += '<text x="' + (px(s.klasik.tepe) + 12) + '" y="' + (cy + 4) + '">fark yok</text>';
+        }
+      });
+      $("senaryoGrafik").innerHTML = '<svg class="svg-grafik" viewBox="0 0 ' + g + " " + y + '" role="img" aria-label="Senaryolara göre en yüksek batarya sıcaklığı">' + ic + "</svg>";
+      $("senaryoTablo").innerHTML = analiz.senaryolar.map((s) =>
+        "<tr><td>" + s.ad + "</td><td>" + sayi(s.klasik.tepe, 1) + " °C</td><td>" + sayi(s.ml.tepe, 1) + " °C</td><td>" + sure(s.klasik.ust32) + "</td><td>" + sure(s.ml.ust32) + "</td><td>%" + sayi(s.klasik.pompa, 1) + "</td><td>%" + sayi(s.ml.pompa, 1) + "</td></tr>").join("");
+    }
+
+    const o = analiz.ogrenme;
+    const oCok = Math.ceil(Math.max(...o.map((n) => Math.max(n.sabit, n.ogrenen))) * 10) / 10;
+    const oAz = Math.floor(Math.min(...o.map((n) => Math.min(n.sabit, n.ogrenen))) * 10) / 10 - 0.1;
+    svgCizgi($("ogrenmeGrafik"), {
+      baslik: "Cihazda öğrenme sırasında tahmin hatası", xAd: "dakika", xBirim: "dk", yAz: oAz, yCok: oCok,
+      yIzgara: [oAz, (oAz + oCok) / 2, oCok].map((v) => +v.toFixed(2)), xIzgara: [15, 60, 120, 180, 240],
+      seriler: [
+        { ad: "Python modeli, sabit", renk: "var(--dim)", kesik: true, nokta: true, noktalar: o.map((n) => [n.dakika, n.sabit]) },
+        { ad: "Öğrenmeye devam eden", renk: "var(--seri-ml)", nokta: true, noktalar: o.map((n) => [n.dakika, n.ogrenen]) }
+      ]
+    });
+    const sonSaat = o.slice(-4);
+    const ortS = sonSaat.reduce((t, n) => t + n.sabit, 0) / sonSaat.length;
+    const ortO = sonSaat.reduce((t, n) => t + n.ogrenen, 0) / sonSaat.length;
+    $("ogrenmeNot").innerHTML = "Bu denemede batarya daha hafif, pompası daha zayıf ve ortam 30 °C. Son bir saatte öğrenen modelin hatası <b>" + sayi(ortO, 2) + " °C</b>, sabit modelinki <b>" + sayi(ortS, 2) + " °C</b>. Kazanç küçük ama sürekli; dikey eksen sıfırdan başlamıyor.";
+  }
+
+  async function onnxYukle() {
+    const rozet = $("onnxRozet");
+    try {
+      ort.env.wasm.wasmPaths = new URL("ort/", location.href).href;
+      ort.env.wasm.numThreads = 1;
+      const oturum = await ort.InferenceSession.create("model.onnx?v=2");
+      const deneme = [];
+      for (let i = 0; i < 40; i++) deneme.push([Math.sin(i) * 2, (i % 5) / 4, Math.cos(i * 0.7)]);
+      const tensor = new ort.Tensor("float32", Float32Array.from(deneme.flat()), [deneme.length, 3]);
+      const cikti = await oturum.run({ girdi: tensor }, ["degisim"]);
+      let fark = 0;
+      deneme.forEach((girdi, i) => {
+        const elle = S.cikisHesapla(model.cikisAgirlik, model.cikisSabiti, S.gizliKatmanHesapla(model, girdi));
+        fark = Math.max(fark, Math.abs(elle - cikti.degisim.data[i]));
+      });
+      if (fark > 1e-3) throw new Error("fark " + fark);
+      onnxOturum = oturum;
+      rozet.className = "rozet tamam";
+      $("onnxYazi").textContent = "ONNX Runtime çalışıyor · Arduino formülüyle fark " + fark.toExponential(1).replace(".", ",");
+      window.onnxDurumu = { calisiyor: true, fark };
+    } catch (hata) {
+      rozet.className = "rozet hata";
+      $("onnxYazi").textContent = "ONNX yüklenemedi; aynı ağırlıklar JavaScript ile hesaplanıyor";
+      window.onnxDurumu = { calisiyor: false, hata: String(hata) };
+    }
+  }
+
+  const kodBilgisi = {
+    "klasik.ino": "Makine öğrenmesi olmayan sürüm.",
+    "ml.ino": "Makine öğrenmeli sürüm; aynı klasördeki model.h ile birlikte derlenir.",
+    "model.h": "Python eğitiminin ürettiği ağırlıklar. Elle yazılmadı, egit.py üretti.",
+    "egit.py": "Modeli eğitip model.onnx ve model.h dosyalarını üreten Python betiği."
+  };
+  const kodOnbellek = {};
+
+  async function kodGoster(dosya) {
+    $("kodNot").textContent = kodBilgisi[dosya];
+    if (!kodOnbellek[dosya]) {
+      $("kodKap").textContent = "Yükleniyor…";
+      try {
+        const yanit = await fetch("kod/" + dosya + "?v=2");
+        if (!yanit.ok) throw new Error(String(yanit.status));
+        kodOnbellek[dosya] = await yanit.text();
+      } catch (hata) {
+        $("kodKap").textContent = "Dosya yüklenemedi. GitHub'dan bakabilirsiniz.";
+        return;
+      }
+    }
+    $("kodKap").textContent = kodOnbellek[dosya];
+    $("kodKap").scrollTop = 0;
+  }
+
+  function sekmeAc(ad) {
+    if (!document.getElementById("panel-" + ad)) ad = "simulasyon";
+    etkinSekme = ad;
+    document.querySelectorAll(".sekmeler button").forEach((d) => d.setAttribute("aria-selected", String(d.dataset.sekme === ad)));
+    document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== "panel-" + ad; });
+    $("kontrolKarti").hidden = ad === "analiz" || ad === "kod";
+    if (ad === "kod" && $("kodKap").textContent === "Yükleniyor…") kodGoster("klasik.ino");
+    try { history.replaceState(null, "", "#" + ad); } catch (e) {}
+    yaz();
   }
 
   function kare(an) {
     const gecen = Math.min((an - oncekiAn) / 1000, 0.25);
     oncekiAn = an;
-    if (calisiyor) {
+    if (calisiyor && !mesgul) {
       birikim += gecen * hiz;
-      let adet = 0;
-      while (birikim >= 1 && adet < 120) {
-        tik();
-        birikim -= 1;
-        adet++;
+      const adet = Math.min(Math.floor(birikim), 90);
+      if (adet > 0) {
+        birikim -= adet;
+        mesgul = true;
+        (async () => {
+          for (let i = 0; i < adet; i++) await tik();
+        })().then(() => {
+          mesgul = false;
+          yaz();
+          if (an - sonKayit > 4000) {
+            sonKayit = an;
+            ogrenilenYaz();
+          }
+        });
       }
-      if (adet > 0) yaz();
     }
     if (!azHareket) {
-      akisK -= gecen * (fK.pompaPwm / 255) * 90;
-      akisM -= gecen * (fM.pompaPwm / 255) * 90;
-      $("kAkis").style.strokeDashoffset = akisK;
-      $("mAkis").style.strokeDashoffset = akisM;
+      if (etkinSekme === "simulasyon") {
+        akisK -= gecen * (fK.pompaPwm / 255) * 90;
+        akisM -= gecen * (fM.pompaPwm / 255) * 90;
+        $("kAkis").style.strokeDashoffset = akisK;
+        $("mAkis").style.strokeDashoffset = akisM;
+      }
+      if (etkinSekme === "devre") {
+        const pwm = (devreKarti === "ml" ? fM : fK).pompaPwm;
+        pervaneAcisi = (pervaneAcisi + gecen * (pwm / 255) * 540) % 360;
+        $("pervane").setAttribute("transform", "rotate(" + pervaneAcisi.toFixed(1) + " 760 262)");
+      }
     }
     $("kAkis").style.opacity = fK.pompaPwm > 0 ? 1 : 0;
     $("mAkis").style.opacity = fM.pompaPwm > 0 ? 1 : 0;
@@ -681,13 +1273,26 @@ footer a { color: var(--fg); }
     });
   }
 
-  secimBagla("senaryolar", "senaryo", (deger) => {
-    senaryo = deger;
-    yaz();
-  });
-  secimBagla("hizlar", "hiz", (deger) => {
-    hiz = Number(deger);
-  });
+  {
+    let ic = "";
+    const ust = [["GND", 108], [13, 128], [12, 142], [11, 156], [10, 170], [9, 184], [8, 198], [7, 212], [6, 226], [5, 240], [4, 254], [3, 268], [2, 282], [1, 296], [0, 310]];
+    const alt = [["5V", 186], ["GND", 206], ["GND", 226], ["VIN", 244], ["A0", 262], ["A1", 276], ["A2", 290], ["A3", 304], ["A4", 318], ["A5", 332]];
+    for (const [ad, x] of ust) {
+      ic += '<rect x="' + (x - 3.5) + '" y="174.5" width="7" height="7" fill="#c9a227"/>';
+      ic += '<text class="pin" x="' + x + '" y="196" text-anchor="middle">' + ad + "</text>";
+    }
+    for (const [ad, x] of alt) {
+      ic += '<rect x="' + (x - 3.5) + '" y="358.5" width="7" height="7" fill="#c9a227"/>';
+      ic += '<text class="pin" x="' + x + '" y="351" text-anchor="middle">' + ad + "</text>";
+    }
+    $("pinler").innerHTML = ic;
+  }
+
+  secimBagla("senaryolar", "senaryo", (deger) => { senaryo = deger; yaz(); });
+  secimBagla("hizlar", "hiz", (deger) => { hiz = Number(deger); });
+  secimBagla("devreSecim", "kart", (deger) => { devreKarti = deger; yaz(); });
+  secimBagla("kodSecim", "dosya", kodGoster);
+  document.querySelectorAll(".sekmeler button").forEach((d) => d.addEventListener("click", () => sekmeAc(d.dataset.sekme)));
 
   $("yuk").addEventListener("input", () => {
     if (senaryo !== "elle") {
@@ -697,7 +1302,6 @@ footer a { color: var(--fg); }
     yaz();
   });
   $("ortam").addEventListener("input", yaz);
-
   $("durdur").addEventListener("click", () => {
     calisiyor = !calisiyor;
     $("durdur").textContent = calisiyor ? "Durdur" : "Devam et";
@@ -708,8 +1312,17 @@ footer a { color: var(--fg); }
     $("ariza").textContent = kopuk ? "Sensörü tak" : "Sensörü kopar";
     $("ariza").setAttribute("aria-pressed", String(kopuk));
   });
-  $("sifirla").addEventListener("click", sifirla);
-
+  $("sifirla").addEventListener("click", () => {
+    sifirla({ cikisAgirlik: kM.cikisAgirlik, cikisSabiti: kM.cikisSabiti, guncellemeSayisi: kM.guncellemeSayisi });
+  });
+  $("ogrenileniSil").addEventListener("click", () => {
+    kM.cikisAgirlik = model.cikisAgirlik.slice();
+    kM.cikisSabiti = model.cikisSabiti;
+    kM.guncellemeSayisi = 0;
+    hataPenceresi = [];
+    try { localStorage.removeItem("sogutma-ogrenilen"); } catch (e) {}
+    yaz();
+  });
   $("temaDugme").addEventListener("click", () => {
     const yeni = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", yeni);
@@ -722,8 +1335,12 @@ footer a { color: var(--fg); }
   kap.addEventListener("pointerdown", ipucuGoster);
   kap.addEventListener("pointerleave", ipucuGizle);
   window.addEventListener("resize", grafikleriCiz);
+  window.addEventListener("pagehide", ogrenilenYaz);
 
-  sifirla();
+  sifirla(ogrenilenOku());
+  analizCiz();
+  sekmeAc(location.hash.slice(1) || "simulasyon");
+  onnxYukle();
   requestAnimationFrame((an) => {
     oncekiAn = an;
     requestAnimationFrame(kare);

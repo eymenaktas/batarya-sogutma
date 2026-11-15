@@ -1,5 +1,5 @@
 const int sensorPin = A0;
-const int pompaPin = 9;
+const int pompaPin = 3;
 const int buzzerPin = 8;
 const int yesilLedPin = 4;
 const int kirmiziLedPin = 7;

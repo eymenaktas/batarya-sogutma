@@ -2,3 +2,7 @@ test/cikti/
 build/
 .DS_Store
 .agents/
+egitim/.venv/
+egitim/veri.csv
+site/ort/
+site/kod/

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const S = require(path.join(__dirname, "..", "site", "sim.js"));
+const model = require(path.join(__dirname, "..", "site", "model.json"));
 
 function senaryoYuku(saniye) {
   const t = saniye % 900;
@@ -53,8 +54,8 @@ function karsilastir(ad, csvYolu, js) {
 }
 
 const klasik = jsCalistir(S.klasikOlustur, S.klasikAdim);
-const ml = jsCalistir(S.mlOlustur, S.mlAdim);
+const ml = jsCalistir(() => S.mlOlustur(model), S.mlAdim);
 const tamam1 = karsilastir("klasik", process.argv[2], klasik);
 const tamam2 = karsilastir("ml", process.argv[3], ml);
-console.log("ml agirliklar: egim", ml.k.agirlikEgim.toFixed(3), "pompa", ml.k.agirlikPompa.toFixed(3), "sabit", ml.k.agirlikSabit.toFixed(3));
+console.log("ml ogrenme adimi:", ml.k.guncellemeSayisi);
 process.exit(tamam1 && tamam2 ? 0 : 1);

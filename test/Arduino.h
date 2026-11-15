@@ -57,6 +57,7 @@ struct SahteSerial {
   void print(const char *) {}
   void print(double, int) {}
   void print(int) {}
+  void print(unsigned long) {}
   void println(const char *) {}
 };
 static SahteSerial Serial;

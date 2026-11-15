@@ -1,69 +1,140 @@
 # Batarya Soğutma
 
-Elektrikli araç bataryasının sıcaklığını ölçüp soğutma pompasını otomatik ayarlayan iki Arduino kodu.
+Elektrikli araç bataryasının sıcaklığını ölçüp soğutma pompasını otomatik ayarlayan iki Arduino kodu: biri klasik kurallarla, diğeri makine öğrenmesiyle çalışır.
 
-**Deneme ortamı:** https://akts.tr/sogutma/
+**Canlı deneme ortamı → [akts.tr/sogutma](https://akts.tr/sogutma/)**
 
-| Sürüm | Dosya | Ne yapar |
-|---|---|---|
-| Klasik | [`klasik/klasik.ino`](klasik/klasik.ino) | Şu anki sıcaklığa göre pompayı açar, kapatır ve gücünü ayarlar |
-| Makine öğrenmeli | [`ml/ml.ino`](ml/ml.ino) | Aynı kurallar, ek olarak 20 saniye sonraki sıcaklığı tahmin edip pompayı erkenden çalıştırır |
+![Canlı devre görünümü](docs/devre.png)
 
-## Bağlantılar (Arduino Uno)
+## İçindekiler
 
-| Parça | Pin |
+| Klasör | Ne var |
 |---|---|
-| LM35 sıcaklık sensörü | A0 |
-| Pompa (MOSFET üzerinden, PWM) | 9 |
-| Buzzer | 8 |
-| Yeşil LED | 4 |
-| Kırmızı LED | 7 |
+| [`klasik/`](klasik/klasik.ino) | Makine öğrenmesi olmayan Arduino kodu |
+| [`ml/`](ml/ml.ino) | Makine öğrenmeli Arduino kodu ve modelin ağırlıkları (`model.h`) |
+| [`egitim/`](egitim/egit.py) | Modeli Python'da eğitip ONNX'e ve Arduino'ya aktaran betikler |
+| [`site/`](site/index.html) | Deneme ortamı: simülasyon, canlı devre, analiz |
+| [`test/`](test/calistir.sh) | Arduino kodunu bilgisayarda derleyip deneyen düzenek |
 
-Pompa doğrudan Arduino pinine bağlanmaz. Araya bir N kanal MOSFET (örneğin IRLZ44N) ve pompa uçlarına ters bir diyot konur.
+## İki sürüm
 
-## Klasik sürüm nasıl çalışır
+### Klasik
 
 1. Saniyede bir, sensörden 10 ölçüm alıp ortalamasını hesaplar.
 2. Sıcaklık 30 °C'ye çıkınca pompayı açar, 27 °C'ye inince kapatır. Aradaki 3 derecelik boşluk pompanın sürekli açılıp kapanmasını önler.
 3. Pompa açıkken sıcaklık arttıkça gücü de artar, 45 °C'de tam güce ulaşır.
 4. 55 °C'de alarm verir: kırmızı LED yanar, buzzer öter.
-5. Sensör koparsa ya da saçma bir değer okursa pompayı tam güçte çalıştırır ve alarm verir.
+5. Sensör koparsa pompayı tam güçte çalıştırır ve alarm verir.
 
-## Makine öğrenmeli sürüm nasıl çalışır
+### Makine öğrenmeli
 
-Klasik sürümün bütün kuralları geçerli. Üstüne küçük bir model eklenir:
+Klasik sürümün bütün kuralları geçerli. Üstüne, sıcaklığın **20 saniye sonra kaç derece değişeceğini** tahmin eden küçük bir sinir ağı eklenir. Pompa, şu anki sıcaklık ile tahmin edilen sıcaklıktan hangisi büyükse ona göre çalışır; böylece batarya hızla ısınmaya başladığında pompa beklemeden devreye girer.
+
+Model üç şeye bakar:
+
+- sıcaklığın son 5 saniyedeki değişimi
+- pompanın o anki gücü
+- sıcaklığın kendisi
+
+## Model nereden geliyor
 
 ```
-tahmini değişim = agirlikEgim × eğim + agirlikPompa × pompa + agirlikSabit
+simülasyon verisi  →  Python eğitimi  →  model.onnx  →  site (ONNX Runtime)
+   veri_uret.js          egit.py       ↘  model.h    →  Arduino
 ```
 
-- **eğim:** sıcaklığın son 5 saniyede ne kadar değiştiği
-- **pompa:** pompanın o anki gücü (0 ile 1 arası)
+1. `egitim/veri_uret.js` simülasyonda 240 rastgele sürüş üretir (354 bin ölçüm).
+2. `egitim/egit.py` scikit-learn ile 3 girdi → 8 nöron → 1 çıktı boyutunda bir ağ eğitir.
+3. Aynı betik ağı `site/model.onnx` dosyasına aktarır ve ONNX Runtime çıktısının elle hesapla aynı olduğunu denetler.
+4. Ağırlıklar `ml/model.h` olarak Arduino koduna gömülür. Deneme ortamı ise `model.onnx` dosyasını tarayıcıda ONNX Runtime ile çalıştırır.
 
-Kart her saniye o anki durumu hafızasına yazar. 20 saniye sonra gerçek sıcaklığı gördüğünde eski tahminiyle karşılaştırır ve üç ağırlığı hatayı azaltacak yönde biraz değiştirir. Ağırlıklar sıfırdan başlar, yani kart bataryayı çalışırken kendi kendine tanır.
+### Cihazda öğrenmeye devam
 
-Pompa gücü, şu anki sıcaklık ile tahmin edilen sıcaklıktan hangisi büyükse ona göre ayarlanır. Böylece batarya hızla ısınmaya başladığında pompa beklemeden devreye girer.
+Kart sıfırdan öğrenmez, Python'dan gelen modelle başlar. Çalışırken her saniye 20 saniye önceki tahminini gerçek değerle karşılaştırır ve ağın yalnızca son katmanını çok küçük adımlarla düzeltir. Öğrendiklerini 10 dakikada bir EEPROM'a yazar; kapatıp açınca kaldığı yerden sürdürür. Deneme ortamı da aynısını yapar ve öğrendiklerini tarayıcıda saklar.
 
-## Ölçülen fark
+## Ölçülen sonuçlar
 
-`test/` klasöründeki düzenek iki `.ino` dosyasını bilgisayarda derleyip aynı batarya modeliyle çalıştırır. 50 saniye tam yük, 190 saniye dinlenme döngüsünde, 20 °C ortamda, model öğrendikten sonra:
+![Analiz sekmesi](docs/analiz.png)
 
-| | Klasik | Makine öğrenmeli |
+**Tahmin doğruluğu** (modelin görmediği sürüşlerde, 20 saniye sonrası için ortalama hata):
+
+| Yöntem | Hata |
+|---|---|
+| Python modeli | 0,41 °C |
+| Düz çizgi uzatmak | 0,47 °C |
+| Hiç tahmin etmemek | 0,90 °C |
+
+**Soğutmaya etkisi** (40 dakikalık sürüş, 20 °C ortam, en yüksek batarya sıcaklığı):
+
+| Senaryo | Klasik | Makine öğrenmeli |
 |---|---|---|
-| En yüksek sıcaklık | 34,1 °C | 33,3 °C |
-| 32 °C üstünde geçen süre (40 dakikada) | 325 sn | 208 sn |
-| Ortalama pompa gücü | %18,4 | %19,8 |
+| Ani hızlanma | 34,1 °C | 33,2 °C |
+| Şehir içi | 31,8 °C | 30,9 °C |
+| Uzun yokuş | 35,7 °C | 35,7 °C |
+| Hızlı şarj | 34,1 °C | 34,1 °C |
 
-Uzun süren sabit yükte iki sürüm aynı sıcaklığa oturur; tahminin faydası ani ısınmalarda görülür.
+Tahminin faydası ani ısınmalarda görülür. Uzun süren sabit yükte iki sürüm aynı sıcaklığa oturur, çünkü orada öngörülecek bir değişim kalmaz.
 
-Batarya modeli basitleştirilmiştir, gerçek bir bataryada sayılar farklı çıkar.
+**Cihazda öğrenme:** eğitimde görmediği farklı bir bataryada dört saatin sonunda tahmin hatası 0,86 °C'den 0,75 °C'ye iner. Kazanç küçük ama süreklidir.
 
-## Test
+Batarya modeli basitleştirilmiştir; gerçek bir bataryada sayılar farklı çıkar.
+
+## Bağlantılar (Arduino Uno)
+
+| Parça | Uç | Nereye |
+|---|---|---|
+| LM35 sıcaklık sensörü | VCC / OUT / GND | 5V / A0 / GND |
+| MOSFET (IRLZ44N) | Gate | D3 (PWM) |
+| MOSFET (IRLZ44N) | Drain | Pompa − |
+| MOSFET (IRLZ44N) | Source | Ortak GND |
+| Pompa | + | 12 V kaynak + |
+| Diyot (1N4007) | Çizgili uç | Pompa +, diğer uç pompa − |
+| Buzzer | + | D8 |
+| Kırmızı LED (220 Ω ile) | Uzun bacak | D7 |
+| Yeşil LED (220 Ω ile) | Uzun bacak | D4 |
+| 12 V kaynak | − | Ortak GND |
+
+Pompa Arduino pininden beslenmez. Pin yalnızca MOSFET'i açıp kapatır, akım 12 V kaynaktan gelir. Diyot, pompa dururken oluşan ters gerilimden MOSFET'i korur.
+
+## Deneme ortamı
+
+![Simülasyon sekmesi](docs/simulasyon.png)
+
+- **Simülasyon:** iki kod aynı bataryada yan yana çalışır; yük, ortam sıcaklığı, senaryo ve hız ayarlanır.
+- **Devre:** Arduino ve parçaların canlı bağlantı şeması; LED'ler, pompa ve seri monitör koda göre hareket eder.
+- **Analiz:** model doğruluğu, senaryo karşılaştırmaları ve cihazda öğrenme.
+- **Kod:** kaynak dosyalar.
+
+Sitedeki simülasyon Arduino kodunun satır satır kopyasını çalıştırır.
+
+## Kendi bilgisayarında çalıştırma
+
+Test:
 
 ```
 ./test/calistir.sh
 ```
 
-Düzenek ayrıca deneme ortamındaki JavaScript kopyasının Arduino koduyla aynı sonucu verdiğini ve sensör koptuğunda pompanın tam güce çıktığını denetler.
+Modeli yeniden eğitme:
 
-Kodlar `arduino-cli` ile derlenerek de denendi. Sıcaklık formülü 5 V ve 10 bit ölçüm yapan Arduino Uno içindir; başka bir kartta `sicaklikOku` içindeki çarpan değiştirilmelidir.
+```
+node egitim/veri_uret.js
+pip install -r egitim/requirements.txt
+python egitim/egit.py
+node egitim/analiz.js
+```
+
+Siteyi açma:
+
+```
+./site/hazirla.sh
+cd site && python3 -m http.server
+```
+
+## Neler denendi
+
+- İki `.ino` dosyası bilgisayarda derlenip 3600 saniyelik sürüşte sitedeki kopyayla karşılaştırıldı; sonuçlar birebir aynı.
+- Sensör koptuğunda iki sürümde de pompa tam güce çıkıyor.
+- ONNX Runtime çıktısı ile Arduino'daki formül arasındaki fark milyonda bir düzeyinde.
+- Cihazda öğrenme 24 saatlik simülasyonda kararlı kaldı.
+- Kodlar `arduino-cli` ile derlendi. Gerçek kart üzerinde denenmedi. Sıcaklık formülü 5 V ve 10 bit ölçüm yapan Arduino Uno içindir.
