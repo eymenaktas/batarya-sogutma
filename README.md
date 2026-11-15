@@ -138,3 +138,7 @@ cd site && python3 -m http.server
 - ONNX Runtime çıktısı ile Arduino'daki formül arasındaki fark milyonda bir düzeyinde.
 - Cihazda öğrenme 24 saatlik simülasyonda kararlı kaldı.
 - Kodlar `arduino-cli` ile derlendi. Gerçek kart üzerinde denenmedi. Sıcaklık formülü 5 V ve 10 bit ölçüm yapan Arduino Uno içindir.
+
+## Görsel kaynağı
+
+Devre görünümündeki Arduino Uno fotoğrafı: Nick Hubbard, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/), [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Arduino_UNO_unpacked.jpg). Arka planı temizlenip kırpıldı.
