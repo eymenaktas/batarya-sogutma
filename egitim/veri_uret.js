@@ -14,7 +14,7 @@ function aralik(a, b) {
 }
 
 const bosModel = { cikisAgirlik: [], cikisSabiti: 0 };
-const bolumSayisi = 240;
+const bolumSayisi = 800;
 const bolumSuresi = 1500;
 const satirlar = ["bolum,saniye,egim,pompa,sicaklikOlcekli,sicaklik"];
 

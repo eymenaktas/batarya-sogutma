@@ -43,8 +43,8 @@ simülasyon verisi  →  Python eğitimi  →  model.onnx  →  site (ONNX Runti
    veri_uret.js          egit.py       ↘  model.h    →  Arduino
 ```
 
-1. `egitim/veri_uret.js` simülasyonda 240 rastgele sürüş üretir (354 bin ölçüm).
-2. `egitim/egit.py` scikit-learn ile 3 girdi → 8 nöron → 1 çıktı boyutunda bir ağ eğitir.
+1. `egitim/veri_uret.js` simülasyonda 800 rastgele sürüş üretir (1,2 milyon ölçüm).
+2. `egitim/egit.py` scikit-learn ile 3 girdi → 8 nöron → 1 çıktı boyutunda bir ağı 30 dakika eğitir; ayrı sürüşlerden oluşan doğrulama kümesinde en iyi ağırlıkları saklar.
 3. Aynı betik ağı `site/model.onnx` dosyasına aktarır ve ONNX Runtime çıktısının elle hesapla aynı olduğunu denetler.
 4. Ağırlıklar `ml/model.h` olarak Arduino koduna gömülür. Deneme ortamı ise `model.onnx` dosyasını tarayıcıda ONNX Runtime ile çalıştırır.
 
@@ -62,20 +62,22 @@ Kart sıfırdan öğrenmez, Python'dan gelen modelle başlar. Çalışırken her
 |---|---|
 | Python modeli | 0,41 °C |
 | Düz çizgi uzatmak | 0,47 °C |
-| Hiç tahmin etmemek | 0,90 °C |
+| Hiç tahmin etmemek | 0,92 °C |
+
+30 dakikalık eğitim 3583 tur sürdü ama en iyi sonuç 365. turda (yaklaşık 3. dakikada) geldi; sonrasında hata düşmedi. Aynı test verisinde ilk modelin hatası 0,418 °C, 30 dakika eğitilenin 0,414 °C. 8 nöronlu ağ bu veriden öğrenebileceğinin sonuna ulaştı; kalan hata, 20 saniye içinde sürücünün ne yapacağını bilememekten geliyor.
 
 **Soğutmaya etkisi** (40 dakikalık sürüş, 20 °C ortam, en yüksek batarya sıcaklığı):
 
 | Senaryo | Klasik | Makine öğrenmeli |
 |---|---|---|
-| Ani hızlanma | 34,1 °C | 33,2 °C |
+| Ani hızlanma | 34,1 °C | 33,3 °C |
 | Şehir içi | 31,8 °C | 30,9 °C |
 | Uzun yokuş | 35,7 °C | 35,7 °C |
 | Hızlı şarj | 34,1 °C | 34,1 °C |
 
 Tahminin faydası ani ısınmalarda görülür. Uzun süren sabit yükte iki sürüm aynı sıcaklığa oturur, çünkü orada öngörülecek bir değişim kalmaz.
 
-**Cihazda öğrenme:** eğitimde görmediği farklı bir bataryada dört saatin sonunda tahmin hatası 0,86 °C'den 0,75 °C'ye iner. Kazanç küçük ama süreklidir.
+**Cihazda öğrenme:** eğitimde görmediği farklı bir bataryada son bir saatte tahmin hatası Python modelinde 0,86 °C, öğrenmeye devam edende 0,74 °C. Kazanç küçük ama süreklidir.
 
 Batarya modeli basitleştirilmiştir; gerçek bir bataryada sayılar farklı çıkar.
 

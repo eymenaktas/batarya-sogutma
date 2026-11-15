@@ -1,4 +1,7 @@
+import copy
 import json
+import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +14,7 @@ from sklearn.neural_network import MLPRegressor
 KOK = Path(__file__).resolve().parent.parent
 TAHMIN_SURESI = 20
 GIZLI_SAYISI = 8
+EGITIM_SURESI = float(os.environ.get("EGITIM_SURESI", "1800"))
 
 veri = np.loadtxt(KOK / "egitim" / "veri.csv", delimiter=",", skiprows=1)
 bolum, saniye = veri[:, 0].astype(int), veri[:, 1].astype(int)
@@ -26,20 +30,52 @@ y = (gelecek - sicaklik)[gecerli].astype(np.float32)
 bolumler = bolum[gecerli]
 
 test_baslangic = int(bolumler.max() * 0.8)
-egitim, test = bolumler < test_baslangic, bolumler >= test_baslangic
+dogrulama_baslangic = int(bolumler.max() * 0.7)
+egitim = bolumler < dogrulama_baslangic
+dogrulama = (bolumler >= dogrulama_baslangic) & (bolumler < test_baslangic)
+test = bolumler >= test_baslangic
 
 model = MLPRegressor(
     hidden_layer_sizes=(GIZLI_SAYISI,),
     activation="relu",
     solver="adam",
     learning_rate_init=0.003,
-    batch_size=512,
-    max_iter=60,
-    tol=1e-6,
-    n_iter_no_change=60,
+    batch_size=1024,
     random_state=7,
 )
-model.fit(X[egitim], y[egitim])
+X_egitim, y_egitim = X[egitim], y[egitim]
+X_dogrulama, y_dogrulama = X[dogrulama], y[dogrulama]
+
+baslangic = time.time()
+en_iyi_hata = float("inf")
+en_iyi_agirlik = None
+en_iyi_tur = 0
+sabir = 0
+tur = 0
+ogrenme_hizi = 0.003
+egri = []
+while time.time() - baslangic < EGITIM_SURESI:
+    model.partial_fit(X_egitim, y_egitim)
+    tur += 1
+    hata = float(mean_absolute_error(y_dogrulama, model.predict(X_dogrulama)))
+    gecen = time.time() - baslangic
+    egri.append((gecen / 60, hata, float(model.loss_)))
+    if hata < en_iyi_hata - 1e-5:
+        en_iyi_hata = hata
+        en_iyi_agirlik = (copy.deepcopy(model.coefs_), copy.deepcopy(model.intercepts_))
+        en_iyi_tur = tur
+        sabir = 0
+    else:
+        sabir += 1
+        if sabir >= 40 and ogrenme_hizi > 1e-5:
+            ogrenme_hizi /= 2
+            model._optimizer.learning_rate = ogrenme_hizi
+            sabir = 0
+    if tur % 25 == 0:
+        print(f"{gecen / 60:5.1f} dk | tur {tur} | dogrulama {hata:.4f} | en iyi {en_iyi_hata:.4f} (tur {en_iyi_tur}) | hiz {ogrenme_hizi:.2e}", flush=True)
+
+model.coefs_, model.intercepts_ = en_iyi_agirlik
+print(f"bitti: {tur} tur, en iyi tur {en_iyi_tur}, dogrulama {en_iyi_hata:.4f}", flush=True)
 
 def temizle(d):
     d = d.astype(np.float32)
@@ -133,7 +169,11 @@ cikti = {
         "testSatiri": int(test.sum()),
         "bolumSayisi": int(bolumler.max() + 1),
         "gizliKareOrtalamasi": round(float(np.mean(np.sum(np.maximum(X[test] @ gizli_agirlik.T + gizli_sabit, 0) ** 2, axis=1))), 3),
-        "kayipEgrisi": [round(float(v), 5) for v in model.loss_curve_],
+        "egitimSuresiDakika": round(EGITIM_SURESI / 60, 1),
+        "turSayisi": tur,
+        "enIyiTur": en_iyi_tur,
+        "dogrulamaSatiri": int(dogrulama.sum()),
+        "kayipEgrisi": [[round(d, 2), round(h, 4)] for d, h, _ in egri[:: max(1, len(egri) // 180)]],
         "maeModel": round(mae_model, 4),
         "maeSabit": round(mae_sabit, 4),
         "maeDuzCizgi": round(mae_duz, 4),

@@ -508,7 +508,7 @@ footer a { color: var(--fg); }
       </div>
       <div class="adimlar">
         <div class="adim"><b>Veri</b><span id="adimVeri">Simülasyonda rastgele sürüşler</span></div>
-        <div class="adim"><b>Python eğitimi</b><span>scikit-learn, 3 girdi → 8 nöron → 1 çıktı</span></div>
+        <div class="adim"><b>Python eğitimi</b><span id="adimEgitim">scikit-learn, 3 girdi → 8 nöron → 1 çıktı</span></div>
         <div class="adim"><b>ONNX</b><span><code>model.onnx</code> dosyasına aktarıldı; bu sayfa onu ONNX Runtime ile çalıştırıyor</span></div>
         <div class="adim"><b>Arduino</b><span>Aynı ağırlıklar <code>model.h</code> olarak karta gömüldü</span></div>
       </div>
@@ -525,7 +525,7 @@ footer a { color: var(--fg); }
           <div id="sacilimGrafik"></div>
         </div>
         <div>
-          <div class="grafik-bas">Eğitim sırasında hata (her tur)</div>
+          <div class="grafik-bas">30 dakikalık eğitimde doğrulama hatası (°C)</div>
           <div id="kayipGrafik"></div>
         </div>
       </div>
@@ -599,8 +599,8 @@ footer a { color: var(--fg); }
   const $ = (kimlik) => document.getElementById(kimlik);
   const pencere = 600;
   const azHareket = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const model = await fetch("model.json?v=2").then((y) => y.json());
-  const analiz = await fetch("analiz.json?v=2").then((y) => y.json());
+  const model = await fetch("model.json?v=4").then((y) => y.json());
+  const analiz = await fetch("analiz.json?v=4").then((y) => y.json());
   const modelImzasi = String(model.cikisSabiti) + "|" + String(model.gizliSabit[0]);
 
   const senaryolar = {
@@ -1064,7 +1064,8 @@ footer a { color: var(--fg); }
 
   function analizCiz() {
     const e = model.egitim;
-    $("adimVeri").textContent = e.bolumSayisi + " rastgele sürüş, " + (e.egitimSatiri + e.testSatiri).toLocaleString("tr-TR") + " ölçüm";
+    $("adimVeri").textContent = e.bolumSayisi + " rastgele sürüş, " + (e.egitimSatiri + e.dogrulamaSatiri + e.testSatiri).toLocaleString("tr-TR") + " ölçüm";
+    $("adimEgitim").textContent = "scikit-learn, 3 girdi → 8 nöron → 1 çıktı; " + sayi(e.egitimSuresiDakika, 0) + " dakika, " + e.turSayisi.toLocaleString("tr-TR") + " tur";
 
     const enBuyuk = Math.max(e.maeModel, e.maeSabit, e.maeDuzCizgi);
     const karolar = [
@@ -1075,7 +1076,8 @@ footer a { color: var(--fg); }
     $("maeKarolar").innerHTML = karolar.map((k) =>
       '<div class="karo' + (k.one ? " one" : "") + '"><div class="ad">' + k.ad + '</div><div class="deger">' + sayi(k.deger, 2) + "<small> °C</small></div>" +
       '<div class="iz"><i style="width:' + ((k.deger / enBuyuk) * 100).toFixed(1) + '%"></i></div></div>').join("");
-    $("dogrulukNot").innerHTML = "Model, sıcaklık değişimindeki oynamanın <b>%" + Math.round(e.r2 * 100) + "</b>'ini açıklıyor. Geri kalanı, 20 saniye içinde sürücünün ne yapacağını bilememekten geliyor.";
+    $("dogrulukNot").innerHTML = "Model, sıcaklık değişimindeki oynamanın <b>%" + Math.round(e.r2 * 100) + "</b>'ini açıklıyor. Geri kalanı, 20 saniye içinde sürücünün ne yapacağını bilememekten geliyor. " +
+      sayi(e.egitimSuresiDakika, 0) + " dakikalık eğitimde en iyi sonuç " + e.enIyiTur.toLocaleString("tr-TR") + ". turda geldi; sonrasında hata düşmedi, yani 8 nöronlu ağ bu veriden öğrenebileceğinin sonuna ulaştı.";
 
     {
       const g = 520;
@@ -1101,11 +1103,13 @@ footer a { color: var(--fg); }
       $("sacilimGrafik").innerHTML = '<svg class="svg-grafik" viewBox="0 0 ' + g + " " + y + '" role="img" aria-label="Gerçek ve tahmin edilen sıcaklık değişimi saçılım grafiği">' + ic + "</svg>";
     }
 
-    const kayip = e.kayipEgrisi.map((v, i) => [i + 1, v]);
-    const kayipCok = Math.ceil(Math.max(...e.kayipEgrisi) * 10) / 10;
+    const kayip = e.kayipEgrisi;
+    const kayipDegerleri = kayip.map((n) => n[1]);
+    const kayipAz = Math.floor(Math.min(...kayipDegerleri) * 100) / 100 - 0.01;
+    const kayipCok = Math.ceil(Math.max(...kayipDegerleri) * 100) / 100;
     svgCizgi($("kayipGrafik"), {
-      baslik: "Eğitim kaybı eğrisi", xAd: "tur", xBirim: "tur", yAz: 0, yCok: kayipCok,
-      yIzgara: [0, kayipCok / 2, kayipCok].map((v) => +v.toFixed(2)), xIzgara: [1, 20, 40, 60].filter((v) => v <= kayip.length),
+      baslik: "Eğitim boyunca doğrulama hatası", xAd: "dakika", xBirim: "dk", yAz: kayipAz, yCok: kayipCok,
+      yIzgara: [kayipAz, (kayipAz + kayipCok) / 2, kayipCok].map((v) => +v.toFixed(3)), xIzgara: [0, 10, 20, 30].filter((v) => v <= Math.ceil(kayip[kayip.length - 1][0])),
       seriler: [{ ad: "kayıp", renk: "var(--seri-ml)", noktalar: kayip }]
     });
 
@@ -1166,7 +1170,7 @@ footer a { color: var(--fg); }
         wasm: new URL("ort/ort-wasm-simd-threaded.wasm", location.href).href
       };
       ort.env.wasm.numThreads = 1;
-      const oturum = await ort.InferenceSession.create("model.onnx?v=2");
+      const oturum = await ort.InferenceSession.create("model.onnx?v=4");
       const deneme = [];
       for (let i = 0; i < 40; i++) deneme.push([Math.sin(i) * 2, (i % 5) / 4, Math.cos(i * 0.7)]);
       const tensor = new ort.Tensor("float32", Float32Array.from(deneme.flat()), [deneme.length, 3]);
@@ -1201,7 +1205,7 @@ footer a { color: var(--fg); }
     if (!kodOnbellek[dosya]) {
       $("kodKap").textContent = "Yükleniyor…";
       try {
-        const yanit = await fetch("kod/" + dosya + "?v=2");
+        const yanit = await fetch("kod/" + dosya + "?v=4");
         if (!yanit.ok) throw new Error(String(yanit.status));
         kodOnbellek[dosya] = await yanit.text();
       } catch (hata) {
