@@ -1164,7 +1164,10 @@ footer a { color: var(--fg); }
   async function onnxYukle() {
     const rozet = $("onnxRozet");
     try {
-      ort.env.wasm.wasmPaths = new URL("ort/", location.href).href;
+      ort.env.wasm.wasmPaths = {
+        mjs: new URL("ort/ort-wasm-simd-threaded.js", location.href).href,
+        wasm: new URL("ort/ort-wasm-simd-threaded.wasm", location.href).href
+      };
       ort.env.wasm.numThreads = 1;
       const oturum = await ort.InferenceSession.create("model.onnx?v=2");
       const deneme = [];
