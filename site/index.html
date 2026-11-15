@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batarya Soğutma Deneme Ortamı · akts.tr</title>
+<meta name="description" content="Elektrikli araç bataryası için pompalı otomatik soğutma: klasik ve makine öğrenmeli Arduino kodunu yan yana deneyin.">
+<meta property="og:title" content="Batarya Soğutma Deneme Ortamı">
+<meta property="og:description" content="Klasik ve makine öğrenmeli Arduino soğutma kodunu aynı bataryada yan yana deneyin.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>
+(function () {
+  var tema = null;
+  try { tema = localStorage.getItem("tema"); } catch (e) {}
+  if (!tema) tema = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", tema);
+})();
+</script>
+<style>
+:root, [data-theme="light"] {
+  --bg: #fbfbfd;
+  --fg: #111113;
+  --card: #ffffff;
+  --border: #e4e4e8;
+  --soft: #f4f4f6;
+  --dim: #717177;
+  --seri-klasik: #2a78d6;
+  --seri-ml: #eb6834;
+  --alarm: #c8281c;
+  --radius: 0.85rem;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --fg: #f5f5f5;
+  --card: #121212;
+  --border: #252525;
+  --soft: #1a1a1a;
+  --dim: #8f8f94;
+  --seri-klasik: #3987e5;
+  --seri-ml: #d95926;
+  --alarm: #e66767;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+}
+.sayfa { max-width: 1120px; margin: 0 auto; padding: 28px 16px 72px; }
+header { display: flex; flex-direction: column-reverse; align-items: stretch; gap: 12px; margin-bottom: 28px; }
+.ust-etiket { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; }
+.ust-etiket a { color: inherit; text-decoration: none; }
+.ust-etiket a:hover { color: var(--fg); }
+h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.1; letter-spacing: -0.03em; margin: 0 0 10px; font-weight: 650; }
+.giris { color: var(--dim); margin: 0; max-width: 62ch; }
+.ust-dugmeler { display: flex; gap: 8px; flex-shrink: 0; align-self: flex-end; }
+h2 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 14px; }
+.kart { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+button, .dugme {
+  font: inherit; font-size: 15px; color: var(--fg); background: var(--card);
+  border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px;
+  cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; white-space: nowrap;
+}
+button:hover, .dugme:hover { background: var(--soft); }
+button:focus-visible, .dugme:focus-visible, input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.kontroller { display: grid; gap: 18px 28px; grid-template-columns: 1fr; }
+.alan label, .alan .ad { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 6px; }
+.alan output { font-variant-numeric: tabular-nums; color: var(--dim); }
+input[type="range"] { width: 100%; accent-color: var(--fg); height: 28px; margin: 0; }
+.grup { display: flex; flex-wrap: wrap; gap: 8px; }
+.ikili { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.ikili .kart { margin-bottom: 0; }
+.kart-bas { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.kart-ad { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+.nokta { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.nokta.klasik { background: var(--seri-klasik); }
+.nokta.ml { background: var(--seri-ml); }
+.durum { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--dim); }
+.durum.etkin { color: var(--fg); border-color: var(--fg); }
+.durum.alarm { color: var(--alarm); border-color: var(--alarm); }
+.buyuk { font-size: clamp(44px, 9vw, 64px); font-weight: 650; letter-spacing: -0.04em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.buyuk small { font-size: 0.4em; color: var(--dim); font-weight: 500; letter-spacing: 0; margin-left: 4px; }
+.alt-yazi { font-size: 14px; color: var(--dim); min-height: 1.6em; font-variant-numeric: tabular-nums; }
+.devre { width: 100%; height: auto; display: block; margin: 10px 0 6px; }
+.devre .cizgi { fill: none; stroke: var(--border); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.devre .akis { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 20; }
+.devre .kutu { fill: var(--soft); stroke: var(--border); stroke-width: 1.5; }
+.devre text { fill: var(--dim); font-size: 12px; font-family: inherit; }
+.cubuk { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; margin-top: 4px; }
+.cubuk i { display: block; height: 100%; width: 0; border-radius: 999px; }
+.satir { display: flex; justify-content: space-between; font-size: 14px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: 10px; }
+.satir b { color: var(--fg); font-weight: 600; }
+.aciklama { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; margin-bottom: 8px; }
+.aciklama span { display: inline-flex; align-items: center; gap: 7px; }
+.aciklama i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.grafik-kap { position: relative; }
+.grafik-bas { font-size: 14px; color: var(--dim); margin: 14px 0 2px; }
+canvas { width: 100%; display: block; touch-action: pan-y; }
+#sicaklikGrafik { height: 280px; }
+#pompaGrafik { height: 130px; }
+.ipucu {
+  position: absolute; top: 8px; pointer-events: none; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 12px; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); display: none; white-space: nowrap; z-index: 2;
+}
+.ipucu div { display: flex; align-items: center; gap: 7px; }
+.ipucu .zaman { color: var(--dim); }
+.tablo-kap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 9px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+thead th { font-size: 13px; color: var(--dim); font-weight: 600; }
+tbody tr:last-child td { border-bottom: 0; }
+.not { font-size: 14px; color: var(--dim); margin: 12px 0 0; }
+.anlatim { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.anlatim h3 { font-size: 17px; margin: 0 0 6px; display: flex; align-items: center; gap: 9px; }
+.anlatim p { margin: 0 0 10px; color: var(--dim); font-size: 15px; }
+.anlatim code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--soft); padding: 2px 6px; border-radius: 6px; color: var(--fg); }
+footer { font-size: 14px; color: var(--dim); margin-top: 28px; }
+footer a { color: var(--fg); }
+@media (min-width: 760px) {
+  .sayfa { padding: 44px 24px 96px; }
+  header { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .ust-dugmeler { align-self: auto; }
+  .kontroller { grid-template-columns: 1fr 1fr; }
+  .tam { grid-column: 1 / -1; }
+  .ikili, .anlatim { grid-template-columns: 1fr 1fr; }
+  .kart { padding: 24px; }
+}
+</style>
+</head>
+<body>
+<div class="sayfa">
+  <header>
+    <div>
+      <p class="ust-etiket"><a href="/">akts.tr</a> · deneme ortamı</p>
+      <h1>Batarya soğutma</h1>
+      <p class="giris">Elektrikli araç bataryasının sıcaklığını ölçüp pompayı otomatik ayarlayan iki Arduino kodu aynı bataryada yan yana çalışıyor. Yükü değiştirin, farkı izleyin.</p>
+    </div>
+    <div class="ust-dugmeler">
+      <a class="dugme" href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">Kod</a>
+      <button id="temaDugme" type="button" aria-label="Temayı değiştir">Tema</button>
+    </div>
+  </header>
+
+  <section class="kart" aria-labelledby="kontrolBaslik">
+    <h2 id="kontrolBaslik">Kontroller</h2>
+    <div class="kontroller">
+      <div class="alan">
+        <label for="yuk"><span>Motor yükü</span><output id="yukYazi">%0</output></label>
+        <input id="yuk" type="range" min="0" max="100" value="0">
+      </div>
+      <div class="alan">
+        <label for="ortam"><span>Ortam sıcaklığı</span><output id="ortamYazi">20 °C</output></label>
+        <input id="ortam" type="range" min="5" max="45" value="20">
+      </div>
+      <div class="alan tam">
+        <div class="ad"><span>Senaryo</span><output id="senaryoYazi"></output></div>
+        <div class="grup" id="senaryolar">
+          <button type="button" data-senaryo="hizlanma" aria-pressed="true">Ani hızlanma</button>
+          <button type="button" data-senaryo="sehir" aria-pressed="false">Şehir içi</button>
+          <button type="button" data-senaryo="yokus" aria-pressed="false">Uzun yokuş</button>
+          <button type="button" data-senaryo="sarj" aria-pressed="false">Hızlı şarj</button>
+          <button type="button" data-senaryo="elle" aria-pressed="false">Elle</button>
+        </div>
+      </div>
+      <div class="alan">
+        <div class="ad"><span>Hız</span></div>
+        <div class="grup" id="hizlar">
+          <button type="button" data-hiz="1" aria-pressed="false">1×</button>
+          <button type="button" data-hiz="10" aria-pressed="true">10×</button>
+          <button type="button" data-hiz="60" aria-pressed="false">60×</button>
+        </div>
+      </div>
+      <div class="alan">
+        <div class="ad"><span>Deney</span><output id="sureYazi">00:00</output></div>
+        <div class="grup">
+          <button type="button" id="durdur" aria-pressed="false">Durdur</button>
+          <button type="button" id="ariza" aria-pressed="false">Sensörü kopar</button>
+          <button type="button" id="sifirla">Sıfırla</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ikili" aria-label="Canlı durum">
+    <article class="kart">
+      <div class="kart-bas">
+        <div class="kart-ad"><span class="nokta klasik"></span>Klasik</div>
+        <span class="durum" id="kDurum">NORMAL</span>
+      </div>
+      <div class="buyuk"><span id="kSicaklik">20,0</span><small>°C</small></div>
+      <div class="alt-yazi">Yalnızca şu anki sıcaklığa bakar</div>
+      <svg class="devre" viewBox="0 0 320 96" role="img" aria-label="Klasik sürüm soğutma devresi">
+        <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
+        <path class="akis" id="kAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-klasik)"/>
+        <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
+        <text x="60" y="52" text-anchor="middle">Batarya</text>
+        <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
+        <text x="260" y="52" text-anchor="middle">Radyatör</text>
+        <circle class="kutu" cx="160" cy="30" r="13"/>
+        <text x="160" y="34" text-anchor="middle">P</text>
+      </svg>
+      <div class="satir"><span>Pompa gücü</span><b id="kPompa">%0</b></div>
+      <div class="cubuk"><i id="kCubuk" style="background: var(--seri-klasik)"></i></div>
+      <div class="satir"><span>Sensörün okuduğu</span><b id="kOkunan">20,0 °C</b></div>
+    </article>
+    <article class="kart">
+      <div class="kart-bas">
+        <div class="kart-ad"><span class="nokta ml"></span>Makine öğrenmeli</div>
+        <span class="durum" id="mDurum">NORMAL</span>
+      </div>
+      <div class="buyuk"><span id="mSicaklik">20,0</span><small>°C</small></div>
+      <div class="alt-yazi" id="mTahmin">20 sn sonrası için tahmin: öğreniyor</div>
+      <svg class="devre" viewBox="0 0 320 96" role="img" aria-label="Makine öğrenmeli sürüm soğutma devresi">
+        <path class="cizgi" d="M70 30 H250 V66 H70 Z"/>
+        <path class="akis" id="mAkis" d="M70 30 H250 V66 H70 Z" stroke="var(--seri-ml)"/>
+        <rect class="kutu" x="14" y="18" width="92" height="60" rx="10"/>
+        <text x="60" y="52" text-anchor="middle">Batarya</text>
+        <rect class="kutu" x="214" y="18" width="92" height="60" rx="10"/>
+        <text x="260" y="52" text-anchor="middle">Radyatör</text>
+        <circle class="kutu" cx="160" cy="30" r="13"/>
+        <text x="160" y="34" text-anchor="middle">P</text>
+      </svg>
+      <div class="satir"><span>Pompa gücü</span><b id="mPompa">%0</b></div>
+      <div class="cubuk"><i id="mCubuk" style="background: var(--seri-ml)"></i></div>
+      <div class="satir"><span>Öğrenilen ağırlıklar</span><b id="mAgirlik">0,00 · 0,00 · 0,00</b></div>
+    </article>
+  </section>
+
+  <section class="kart" style="margin-top: 16px" aria-labelledby="grafikBaslik">
+    <h2 id="grafikBaslik">Son 10 dakika</h2>
+    <div class="aciklama">
+      <span><i style="background: var(--seri-klasik)"></i>Klasik</span>
+      <span><i style="background: var(--seri-ml)"></i>Makine öğrenmeli</span>
+    </div>
+    <div class="grafik-kap" id="grafikKap">
+      <div class="grafik-bas">Batarya sıcaklığı (°C)</div>
+      <canvas id="sicaklikGrafik" role="img" aria-label="İki sürümün batarya sıcaklığı zaman grafiği"></canvas>
+      <div class="grafik-bas">Pompa gücü (%)</div>
+      <canvas id="pompaGrafik" role="img" aria-label="İki sürümün pompa gücü zaman grafiği"></canvas>
+      <div class="ipucu" id="ipucu"></div>
+    </div>
+  </section>
+
+  <section class="kart" aria-labelledby="ozetBaslik">
+    <h2 id="ozetBaslik">Deney özeti</h2>
+    <div class="tablo-kap">
+      <table>
+        <thead>
+          <tr><th scope="col">Ölçüm</th><th scope="col">Klasik</th><th scope="col">Makine öğrenmeli</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>En yüksek sıcaklık</td><td id="oTepeK">–</td><td id="oTepeM">–</td></tr>
+          <tr><td>32 °C üstünde geçen süre</td><td id="oUstK">–</td><td id="oUstM">–</td></tr>
+          <tr><td>Ortalama pompa gücü</td><td id="oPompaK">–</td><td id="oPompaM">–</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="not">Makine öğrenmeli sürüm sıfırdan başlar; ilk dakikalarda klasikle aynı davranır, bataryayı tanıdıkça pompayı daha erken açar. Farkı görmek için 10× ya da 60× hızda birkaç dakika bekleyin.</p>
+  </section>
+
+  <section class="anlatim" aria-label="Nasıl çalışıyor">
+    <article class="kart">
+      <h3><span class="nokta klasik"></span>Klasik sürüm</h3>
+      <p>Saniyede bir 10 ölçümün ortalamasını alır. 30 °C'de pompayı açar, 27 °C'ye inince kapatır; arada sıcaklık arttıkça pompa gücünü de artırır, 45 °C'de tam güce çıkar.</p>
+      <p>55 °C'de ya da sensör koptuğunda alarm verir ve pompayı tam güçte çalıştırır.</p>
+      <p><code>klasik/klasik.ino</code></p>
+    </article>
+    <article class="kart">
+      <h3><span class="nokta ml"></span>Makine öğrenmeli sürüm</h3>
+      <p>Aynı kurallara ek olarak küçük bir model taşır: sıcaklığın son 5 saniyedeki değişimine ve pompa gücüne bakıp 20 saniye sonraki sıcaklığı tahmin eder.</p>
+      <p>Her saniye 20 saniye önceki tahminini gerçek değerle karşılaştırır ve hatayı azaltacak yönde üç ağırlığını günceller. Pompayı tahmine göre erkenden çalıştırır.</p>
+      <p><code>ml/ml.ino</code></p>
+    </article>
+  </section>
+
+  <footer>
+    Buradaki simülasyon Arduino kodunun satır satır aynısını çalıştırır; batarya modeli basitleştirilmiştir. Kodlar <a href="https://github.com/eymenaktas/batarya-sogutma" target="_blank" rel="noopener">GitHub'da</a>.
+  </footer>
+</div>
+
+<script src="sim.js?v=1"></script>
+<script>
+(function () {
+  const S = window.Sogutma;
+  const $ = (kimlik) => document.getElementById(kimlik);
+  const pencere = 600;
+  const azHareket = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const senaryolar = {
+    hizlanma: { ad: "50 sn tam gaz, 190 sn dinlenme", yuk: (t) => (t % 240 < 50 ? 100 : 0) },
+    sehir: { ad: "dur kalk trafik", yuk: (t) => [25, 60, 10, 45, 0, 70, 20, 35][Math.floor(t / 40) % 8] },
+    yokus: { ad: "4 dk %90, 2 dk %20", yuk: (t) => (t % 360 < 240 ? 90 : 20) },
+    sarj: { ad: "sabit %75", yuk: () => 75 },
+    elle: { ad: "kaydırıcıyla siz ayarlayın", yuk: null }
+  };
+
+  let fK, fM, kK, kM, gecmis, zaman, ozet, sonK, sonM;
+  let senaryo = "hizlanma";
+  let hiz = 10;
+  let calisiyor = true;
+  let kopuk = false;
+  let birikim = 0;
+  let oncekiAn = 0;
+  let akisK = 0;
+  let akisM = 0;
+  let imlec = null;
+
+  function sayi(deger, basamak) {
+    return deger.toFixed(basamak).replace(".", ",");
+  }
+
+  function sure(saniye) {
+    const d = Math.floor(saniye / 60);
+    const s = Math.floor(saniye % 60);
+    return String(d).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function sifirla() {
+    const ortam = Number($("ortam").value);
+    fK = S.fizikOlustur();
+    fM = S.fizikOlustur();
+    for (const f of [fK, fM]) {
+      f.ortam = ortam;
+      f.batarya = ortam;
+      f.sensor = ortam;
+    }
+    kK = S.klasikOlustur();
+    kM = S.mlOlustur();
+    gecmis = [];
+    zaman = 0;
+    birikim = 0;
+    imlec = null;
+    ozet = { tepeK: 0, tepeM: 0, ustK: 0, ustM: 0, pompaK: 0, pompaM: 0 };
+    sonK = { sicaklik: ortam, tahmin: ortam, pompaGucu: 0, ariza: false, durum: "NORMAL" };
+    sonM = { sicaklik: ortam, tahmin: ortam, pompaGucu: 0, ariza: false, durum: "NORMAL" };
+    $("ipucu").style.display = "none";
+    yaz();
+  }
+
+  function tik() {
+    zaman++;
+    const tanim = senaryolar[senaryo];
+    if (tanim.yuk) {
+      $("yuk").value = tanim.yuk(zaman);
+    }
+    const yuk = Number($("yuk").value) / 100;
+    const ortam = Number($("ortam").value);
+    for (const f of [fK, fM]) {
+      f.yuk = yuk;
+      f.ortam = ortam;
+      f.sensorKopuk = kopuk;
+    }
+    sonK = S.saniyeIlerlet(fK, kK, S.klasikAdim);
+    sonM = S.saniyeIlerlet(fM, kM, S.mlAdim);
+    gecmis.push({ t: zaman, k: fK.batarya, m: fM.batarya, pk: fK.pompaPwm / 2.55, pm: fM.pompaPwm / 2.55 });
+    if (gecmis.length > pencere) {
+      gecmis.shift();
+      if (imlec !== null) imlec = Math.max(0, imlec - 1);
+    }
+    ozet.tepeK = Math.max(ozet.tepeK, fK.batarya);
+    ozet.tepeM = Math.max(ozet.tepeM, fM.batarya);
+    if (fK.batarya > 32) ozet.ustK++;
+    if (fM.batarya > 32) ozet.ustM++;
+    ozet.pompaK += fK.pompaPwm / 2.55;
+    ozet.pompaM += fM.pompaPwm / 2.55;
+  }
+
+  function durumYaz(eleman, sonuc) {
+    eleman.textContent = sonuc.durum;
+    const alarm = sonuc.durum === "ALARM" || sonuc.durum === "SENSÖR ARIZASI";
+    eleman.className = "durum" + (alarm ? " alarm" : sonuc.pompaGucu > 0 ? " etkin" : "");
+  }
+
+  function yaz() {
+    $("yukYazi").textContent = "%" + $("yuk").value;
+    $("ortamYazi").textContent = $("ortam").value + " °C";
+    $("senaryoYazi").textContent = senaryolar[senaryo].ad;
+    $("sureYazi").textContent = sure(zaman);
+
+    $("kSicaklik").textContent = sayi(fK.batarya, 1);
+    $("mSicaklik").textContent = sayi(fM.batarya, 1);
+    durumYaz($("kDurum"), sonK);
+    durumYaz($("mDurum"), sonM);
+
+    const pk = Math.round(fK.pompaPwm / 2.55);
+    const pm = Math.round(fM.pompaPwm / 2.55);
+    $("kPompa").textContent = "%" + pk;
+    $("mPompa").textContent = "%" + pm;
+    $("kCubuk").style.width = pk + "%";
+    $("mCubuk").style.width = pm + "%";
+    $("kOkunan").textContent = sonK.ariza ? "okunamıyor" : sayi(sonK.sicaklik, 1) + " °C";
+
+    if (sonM.ariza) {
+      $("mTahmin").textContent = "Sensör okunamıyor, pompa tam güçte";
+    } else if (kM.kayitSayisi < S.ayar.gecmisBoyutu) {
+      $("mTahmin").textContent = "20 sn sonrası için tahmin: veri topluyor";
+    } else {
+      $("mTahmin").textContent = "20 sn sonrası için tahmin: " + sayi(sonM.tahmin, 1) + " °C";
+    }
+    $("mAgirlik").textContent = sayi(kM.agirlikEgim, 2) + " · " + sayi(kM.agirlikPompa, 2) + " · " + sayi(kM.agirlikSabit, 2);
+
+    if (zaman > 0) {
+      $("oTepeK").textContent = sayi(ozet.tepeK, 1) + " °C";
+      $("oTepeM").textContent = sayi(ozet.tepeM, 1) + " °C";
+      $("oUstK").textContent = sure(ozet.ustK);
+      $("oUstM").textContent = sure(ozet.ustM);
+      $("oPompaK").textContent = "%" + sayi(ozet.pompaK / zaman, 1);
+      $("oPompaM").textContent = "%" + sayi(ozet.pompaM / zaman, 1);
+    } else {
+      for (const kimlik of ["oTepeK", "oTepeM", "oUstK", "oUstM", "oPompaK", "oPompaM"]) {
+        $(kimlik).textContent = "–";
+      }
+    }
+    grafikleriCiz();
+  }
+
+  function renk(ad) {
+    return getComputedStyle(document.documentElement).getPropertyValue(ad).trim();
+  }
+
+  function tuvalHazirla(tuval) {
+    const kutu = tuval.getBoundingClientRect();
+    const oran = window.devicePixelRatio || 1;
+    const g = Math.round(kutu.width * oran);
+    const y = Math.round(kutu.height * oran);
+    if (tuval.width !== g || tuval.height !== y) {
+      tuval.width = g;
+      tuval.height = y;
+    }
+    const c = tuval.getContext("2d");
+    c.setTransform(oran, 0, 0, oran, 0, 0);
+    c.clearRect(0, 0, kutu.width, kutu.height);
+    return { c, g: kutu.width, y: kutu.height };
+  }
+
+  const bosluk = { sol: 34, sag: 58, ust: 10, alt: 22 };
+
+  function xKonum(indeks, g) {
+    return bosluk.sol + (indeks / (pencere - 1)) * (g - bosluk.sol - bosluk.sag);
+  }
+
+  function grafikCiz(tuval, secenek) {
+    const { c, g, y } = tuvalHazirla(tuval);
+    const alanY = y - bosluk.ust - bosluk.alt;
+    const yKonum = (deger) => bosluk.ust + (1 - (deger - secenek.enAz) / (secenek.enCok - secenek.enAz)) * alanY;
+    const soluk = renk("--dim");
+    const cizgi = renk("--border");
+    const yazi = renk("--fg");
+    const zemin = renk("--card");
+
+    c.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    c.textBaseline = "middle";
+    c.lineWidth = 1;
+
+    for (const deger of secenek.izgara) {
+      const py = Math.round(yKonum(deger)) + 0.5;
+      c.strokeStyle = cizgi;
+      c.beginPath();
+      c.moveTo(bosluk.sol, py);
+      c.lineTo(g - bosluk.sag, py);
+      c.stroke();
+      c.fillStyle = soluk;
+      c.textAlign = "right";
+      c.fillText(String(deger), bosluk.sol - 8, py);
+    }
+
+    for (const esik of secenek.esikler || []) {
+      if (esik.deger <= secenek.enAz || esik.deger >= secenek.enCok) continue;
+      const py = Math.round(yKonum(esik.deger)) + 0.5;
+      c.strokeStyle = soluk;
+      c.setLineDash([3, 4]);
+      c.beginPath();
+      c.moveTo(bosluk.sol, py);
+      c.lineTo(g - bosluk.sag, py);
+      c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = soluk;
+      c.textAlign = "left";
+      c.fillText(esik.ad, g - bosluk.sag + 6, py);
+    }
+
+    if (gecmis.length > 0) {
+      c.fillStyle = soluk;
+      c.textAlign = "center";
+      const ilk = gecmis[0].t;
+      for (let i = 0; i < gecmis.length; i++) {
+        if (gecmis[i].t % 120 === 0) {
+          const px = xKonum(i, g);
+          if (px > bosluk.sol + 16 && px < g - bosluk.sag - 16) {
+            c.fillText(sure(gecmis[i].t), px, y - 9);
+          }
+        }
+      }
+      if (gecmis.length < 120) {
+        c.textAlign = "left";
+        c.fillText(sure(ilk), bosluk.sol, y - 9);
+      }
+    }
+
+    for (const seri of secenek.seriler) {
+      if (gecmis.length < 2) break;
+      c.strokeStyle = renk(seri.renk);
+      c.lineWidth = 2;
+      c.lineJoin = "round";
+      c.beginPath();
+      for (let i = 0; i < gecmis.length; i++) {
+        const px = xKonum(i, g);
+        const py = yKonum(gecmis[i][seri.anahtar]);
+        if (i === 0) c.moveTo(px, py);
+        else c.lineTo(px, py);
+      }
+      c.stroke();
+    }
+
+    if (imlec !== null && gecmis[imlec]) {
+      const px = Math.round(xKonum(imlec, g)) + 0.5;
+      c.strokeStyle = soluk;
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(px, bosluk.ust);
+      c.lineTo(px, y - bosluk.alt);
+      c.stroke();
+      for (const seri of secenek.seriler) {
+        const py = yKonum(gecmis[imlec][seri.anahtar]);
+        c.fillStyle = zemin;
+        c.beginPath();
+        c.arc(px, py, 6, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = renk(seri.renk);
+        c.beginPath();
+        c.arc(px, py, 4, 0, Math.PI * 2);
+        c.fill();
+      }
+    } else if (secenek.ucEtiket && gecmis.length > 1) {
+      const son = gecmis[gecmis.length - 1];
+      const px = xKonum(gecmis.length - 1, g);
+      const uclar = secenek.seriler.map((seri) => ({ seri, py: yKonum(son[seri.anahtar]), deger: son[seri.anahtar] }));
+      uclar.sort((a, b) => a.py - b.py);
+      if (uclar[1].py - uclar[0].py < 15) {
+        const orta = (uclar[0].py + uclar[1].py) / 2;
+        uclar[0].py = orta - 7.5;
+        uclar[1].py = orta + 7.5;
+      }
+      for (const uc of uclar) {
+        const gercekY = yKonum(uc.deger);
+        c.fillStyle = zemin;
+        c.beginPath();
+        c.arc(px, gercekY, 6, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = renk(uc.seri.renk);
+        c.beginPath();
+        c.arc(px, gercekY, 4, 0, Math.PI * 2);
+        c.fill();
+        if (px + 10 < g - bosluk.sag + 2) {
+          c.fillStyle = yazi;
+          c.textAlign = "left";
+          c.fillText(uc.seri.kisa + " " + sayi(uc.deger, 1), px + 10, Math.min(Math.max(uc.py, bosluk.ust + 6), y - bosluk.alt - 6));
+        }
+      }
+    }
+  }
+
+  function grafikleriCiz() {
+    let enAz = Infinity;
+    let enCok = -Infinity;
+    for (const kayit of gecmis) {
+      enAz = Math.min(enAz, kayit.k, kayit.m);
+      enCok = Math.max(enCok, kayit.k, kayit.m);
+    }
+    if (!isFinite(enAz)) {
+      enAz = Number($("ortam").value);
+      enCok = enAz;
+    }
+    enAz = Math.floor((enAz - 1) / 2) * 2;
+    enCok = Math.ceil((enCok + 1) / 2) * 2;
+    if (enCok - enAz < 10) enCok = enAz + 10;
+    const adim = enCok - enAz > 24 ? 10 : enCok - enAz > 12 ? 4 : 2;
+    const izgara = [];
+    for (let d = Math.ceil(enAz / adim) * adim; d <= enCok; d += adim) izgara.push(d);
+
+    grafikCiz($("sicaklikGrafik"), {
+      enAz,
+      enCok,
+      izgara,
+      ucEtiket: true,
+      esikler: [
+        { deger: 27, ad: "kapanır" },
+        { deger: 30, ad: "açılır" },
+        { deger: 45, ad: "tam güç" },
+        { deger: 55, ad: "alarm" }
+      ],
+      seriler: [
+        { anahtar: "k", renk: "--seri-klasik", kisa: "Klasik" },
+        { anahtar: "m", renk: "--seri-ml", kisa: "ML" }
+      ]
+    });
+    grafikCiz($("pompaGrafik"), {
+      enAz: 0,
+      enCok: 100,
+      izgara: [0, 50, 100],
+      seriler: [
+        { anahtar: "pk", renk: "--seri-klasik", kisa: "Klasik" },
+        { anahtar: "pm", renk: "--seri-ml", kisa: "ML" }
+      ]
+    });
+  }
+
+  function ipucuGoster(olay) {
+    const kap = $("grafikKap");
+    const kutu = kap.getBoundingClientRect();
+    const g = $("sicaklikGrafik").getBoundingClientRect().width;
+    const x = olay.clientX - kutu.left;
+    if (gecmis.length < 2) return;
+    let indeks = Math.round(((x - bosluk.sol) / (g - bosluk.sol - bosluk.sag)) * (pencere - 1));
+    indeks = Math.max(0, Math.min(gecmis.length - 1, indeks));
+    imlec = indeks;
+    const kayit = gecmis[indeks];
+    const ipucu = $("ipucu");
+    ipucu.innerHTML =
+      '<div class="zaman">' + sure(kayit.t) + "</div>" +
+      '<div><span class="nokta klasik"></span>Klasik ' + sayi(kayit.k, 1) + " °C · pompa %" + Math.round(kayit.pk) + "</div>" +
+      '<div><span class="nokta ml"></span>ML ' + sayi(kayit.m, 1) + " °C · pompa %" + Math.round(kayit.pm) + "</div>";
+    ipucu.style.display = "block";
+    const px = xKonum(indeks, g);
+    const genislik = ipucu.offsetWidth;
+    let sol = px + 14;
+    if (sol + genislik > kutu.width) sol = px - genislik - 14;
+    if (sol < 0) sol = 0;
+    ipucu.style.left = sol + "px";
+    if (!calisiyor) grafikleriCiz();
+  }
+
+  function ipucuGizle() {
+    imlec = null;
+    $("ipucu").style.display = "none";
+    if (!calisiyor) grafikleriCiz();
+  }
+
+  function kare(an) {
+    const gecen = Math.min((an - oncekiAn) / 1000, 0.25);
+    oncekiAn = an;
+    if (calisiyor) {
+      birikim += gecen * hiz;
+      let adet = 0;
+      while (birikim >= 1 && adet < 120) {
+        tik();
+        birikim -= 1;
+        adet++;
+      }
+      if (adet > 0) yaz();
+    }
+    if (!azHareket) {
+      akisK -= gecen * (fK.pompaPwm / 255) * 90;
+      akisM -= gecen * (fM.pompaPwm / 255) * 90;
+      $("kAkis").style.strokeDashoffset = akisK;
+      $("mAkis").style.strokeDashoffset = akisM;
+    }
+    $("kAkis").style.opacity = fK.pompaPwm > 0 ? 1 : 0;
+    $("mAkis").style.opacity = fM.pompaPwm > 0 ? 1 : 0;
+    requestAnimationFrame(kare);
+  }
+
+  function secimBagla(kapKimlik, nitelik, sec) {
+    const dugmeler = $(kapKimlik).querySelectorAll("button");
+    dugmeler.forEach((dugme) => {
+      dugme.addEventListener("click", () => {
+        dugmeler.forEach((d) => d.setAttribute("aria-pressed", String(d === dugme)));
+        sec(dugme.dataset[nitelik]);
+      });
+    });
+  }
+
+  secimBagla("senaryolar", "senaryo", (deger) => {
+    senaryo = deger;
+    yaz();
+  });
+  secimBagla("hizlar", "hiz", (deger) => {
+    hiz = Number(deger);
+  });
+
+  $("yuk").addEventListener("input", () => {
+    if (senaryo !== "elle") {
+      senaryo = "elle";
+      $("senaryolar").querySelectorAll("button").forEach((d) => d.setAttribute("aria-pressed", String(d.dataset.senaryo === "elle")));
+    }
+    yaz();
+  });
+  $("ortam").addEventListener("input", yaz);
+
+  $("durdur").addEventListener("click", () => {
+    calisiyor = !calisiyor;
+    $("durdur").textContent = calisiyor ? "Durdur" : "Devam et";
+    $("durdur").setAttribute("aria-pressed", String(!calisiyor));
+  });
+  $("ariza").addEventListener("click", () => {
+    kopuk = !kopuk;
+    $("ariza").textContent = kopuk ? "Sensörü tak" : "Sensörü kopar";
+    $("ariza").setAttribute("aria-pressed", String(kopuk));
+  });
+  $("sifirla").addEventListener("click", sifirla);
+
+  $("temaDugme").addEventListener("click", () => {
+    const yeni = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", yeni);
+    try { localStorage.setItem("tema", yeni); } catch (e) {}
+    grafikleriCiz();
+  });
+
+  const kap = $("grafikKap");
+  kap.addEventListener("pointermove", ipucuGoster);
+  kap.addEventListener("pointerdown", ipucuGoster);
+  kap.addEventListener("pointerleave", ipucuGizle);
+  window.addEventListener("resize", grafikleriCiz);
+
+  sifirla();
+  requestAnimationFrame((an) => {
+    oncekiAn = an;
+    requestAnimationFrame(kare);
+  });
+})();
+</script>
+</body>
+</html>

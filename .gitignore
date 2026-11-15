@@ -1,0 +1,4 @@
+test/cikti/
+build/
+.DS_Store
+.agents/
